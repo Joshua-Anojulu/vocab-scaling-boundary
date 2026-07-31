@@ -1,0 +1,44 @@
+source: DKYoon/SlimPajama-6B
+caps: {'tokenizer_fit': '150MB', 'train': '6144MB', 'selection_val': '75MB', 'final_test': '75MB'}
+  [  0.7m] seen=   50,000 kept=   49,895 scanned= 0.20GB | toke=   4.0MB trai= 195.9MB sele=   2.0MB fina=   1.9MB
+  [  1.1m] seen=  100,000 kept=   99,783 scanned= 0.41GB | toke=   9.3MB trai= 398.4MB sele=   3.6MB fina=   3.8MB
+  [  1.7m] seen=  150,000 kept=  149,680 scanned= 0.60GB | toke=  14.4MB trai= 589.2MB sele=   5.4MB fina=   5.4MB
+  [  2.2m] seen=  200,000 kept=  199,563 scanned= 0.80GB | toke=  18.2MB trai= 788.1MB sele=   7.4MB fina=   7.6MB
+  [  2.7m] seen=  250,000 kept=  249,450 scanned= 1.00GB | toke=  22.3MB trai= 982.5MB sele=   9.3MB fina=   9.4MB
+  [  3.1m] seen=  300,000 kept=  299,327 scanned= 1.20GB | toke=  26.9MB trai=1180.6MB sele=  11.2MB fina=  11.1MB
+  [  3.6m] seen=  350,000 kept=  349,223 scanned= 1.40GB | toke=  31.0MB trai=1375.2MB sele=  13.0MB fina=  12.9MB
+  [  4.0m] seen=  400,000 kept=  399,124 scanned= 1.60GB | toke=  35.6MB trai=1577.0MB sele=  15.0MB fina=  15.1MB
+  [  4.4m] seen=  450,000 kept=  448,985 scanned= 1.80GB | toke=  39.7MB trai=1774.2MB sele=  16.8MB fina=  17.2MB
+  [  4.9m] seen=  500,000 kept=  498,888 scanned= 2.01GB | toke=  43.3MB trai=1978.0MB sele=  18.8MB fina=  19.0MB
+  [  5.3m] seen=  550,000 kept=  548,792 scanned= 2.21GB | toke=  47.0MB trai=2178.1MB sele=  21.0MB fina=  20.7MB
+  [  5.9m] seen=  600,000 kept=  598,672 scanned= 2.41GB | toke=  51.0MB trai=2376.2MB sele=  23.0MB fina=  22.6MB
+  [  6.3m] seen=  650,000 kept=  648,574 scanned= 2.61GB | toke=  55.1MB trai=2570.4MB sele=  25.1MB fina=  24.7MB
+  [  6.7m] seen=  700,000 kept=  698,468 scanned= 2.81GB | toke=  58.7MB trai=2767.7MB sele=  27.1MB fina=  26.7MB
+  [  7.2m] seen=  750,000 kept=  748,361 scanned= 3.01GB | toke=  62.6MB trai=2965.7MB sele=  29.2MB fina=  29.0MB
+  [  7.5m] seen=  800,000 kept=  798,248 scanned= 3.21GB | toke=  66.3MB trai=3159.5MB sele=  30.8MB fina=  31.0MB
+  [  8.1m] seen=  850,000 kept=  848,144 scanned= 3.41GB | toke=  71.4MB trai=3358.2MB sele=  32.6MB fina=  33.3MB
+  [  8.5m] seen=  900,000 kept=  898,052 scanned= 3.62GB | toke=  75.8MB trai=3556.3MB sele=  35.6MB fina=  35.5MB
+  [  9.0m] seen=  950,000 kept=  947,956 scanned= 3.81GB | toke=  79.5MB trai=3746.7MB sele=  37.8MB fina=  37.5MB
+  [  9.4m] seen=1,000,000 kept=  997,849 scanned= 4.02GB | toke=  83.7MB trai=3948.8MB sele=  40.4MB fina=  40.0MB
+  [  9.9m] seen=1,050,000 kept=1,047,751 scanned= 4.22GB | toke=  88.0MB trai=4145.5MB sele=  42.5MB fina=  41.6MB
+  [ 10.3m] seen=1,100,000 kept=1,097,638 scanned= 4.42GB | toke=  91.5MB trai=4350.3MB sele=  44.8MB fina=  44.1MB
+  [ 10.8m] seen=1,150,000 kept=1,147,536 scanned= 4.62GB | toke=  95.6MB trai=4544.1MB sele=  48.4MB fina=  46.5MB
+  [ 11.2m] seen=1,200,000 kept=1,197,428 scanned= 4.82GB | toke=  99.2MB trai=4737.4MB sele=  50.2MB fina=  48.2MB
+  [ 11.6m] seen=1,250,000 kept=1,247,283 scanned= 5.03GB | toke= 103.4MB trai=4942.6MB sele=  52.1MB fina=  50.3MB
+  [ 12.1m] seen=1,300,000 kept=1,297,192 scanned= 5.23GB | toke= 107.7MB trai=5141.5MB sele=  54.0MB fina=  52.6MB
+  [ 12.5m] seen=1,350,000 kept=1,347,092 scanned= 5.43GB | toke= 111.7MB trai=5334.9MB sele=  56.1MB fina=  54.5MB
+  [ 12.9m] seen=1,400,000 kept=1,396,992 scanned= 5.62GB | toke= 115.8MB trai=5529.2MB sele=  57.8MB fina=  56.6MB
+  [ 13.4m] seen=1,450,000 kept=1,446,865 scanned= 5.83GB | toke= 119.6MB trai=5728.9MB sele=  60.4MB fina=  58.7MB
+  [ 13.8m] seen=1,500,000 kept=1,496,774 scanned= 6.03GB | toke= 123.7MB trai=5933.0MB sele=  62.4MB fina=  60.6MB
+  [ 14.2m] seen=1,550,000 kept=1,546,685 scanned= 6.23GB | toke= 128.0MB trai=6128.8MB sele=  64.4MB fina=  62.4MB
+
+=== DONE ===
+seen=1,874,376 kept=1,561,636 short=4,028 undecodable=0
+  tokenizer_fit     36,576 docs     150.0 MB  sha=4ee65448daf310a2
+  train          1,488,888 docs    6144.0 MB  sha=581fe77ae3eedbbf
+  selection_val     17,749 docs      75.0 MB  sha=c6d6e6cb536d3ce0
+  final_test        18,423 docs      75.0 MB  sha=3399f24c15ab844d
+elapsed 16.2 min
+INGEST_COMPLETE
+'peer closed connection without sending complete message body (received 30036203 bytes, expected 31373995)' thrown while requesting GET https://huggingface.co/datasets/DKYoon/SlimPajama-6B/resolve/b5f90f419b7489cdba26fdbc8c022fcb5562f968/data/train-00016-of-00048-1691cb363fb16619.parquet
+Retrying in 1s [Retry 1/5].

@@ -1,0 +1,110 @@
+[
+  {
+    "target_nnv": 16000000,
+    "d": 384,
+    "n_layer": 9,
+    "vocab": 4480,
+    "batch": 4,
+    "block": 2048,
+    "grad_accum": 1,
+    "tokens_per_step": 8192,
+    "steps": 111,
+    "seconds": 30.11786920001032,
+    "tokens_per_sec": 30191.777312044655,
+    "achieved_tflops": 3.197828032846859,
+    "peak_mem_gb": 2.082985984,
+    "throttle_ratio": 0.874879474968318,
+    "window_tps": [
+      32216.202199219555,
+      28185.294065526374
+    ],
+    "ok": true,
+    "note": ""
+  },
+  {
+    "target_nnv": 16000000,
+    "d": 384,
+    "n_layer": 9,
+    "vocab": 4480,
+    "batch": 8,
+    "block": 2048,
+    "grad_accum": 1,
+    "tokens_per_step": 16384,
+    "steps": 89,
+    "seconds": 30.263374999980442,
+    "tokens_per_sec": 48182.861296895746,
+    "achieved_tflops": 5.103392985629785,
+    "peak_mem_gb": 3.688323072,
+    "throttle_ratio": 1.0,
+    "window_tps": [
+      48893.749408962336
+    ],
+    "ok": true,
+    "note": ""
+  },
+  {
+    "target_nnv": 16000000,
+    "d": 384,
+    "n_layer": 9,
+    "vocab": 17792,
+    "batch": 4,
+    "block": 2048,
+    "grad_accum": 1,
+    "tokens_per_step": 8192,
+    "steps": 130,
+    "seconds": 30.177541100012604,
+    "tokens_per_sec": 35289.820216649634,
+    "achieved_tflops": 4.8201670930259874,
+    "peak_mem_gb": 2.746406912,
+    "throttle_ratio": 1.0,
+    "window_tps": [
+      36113.76433204557
+    ],
+    "ok": true,
+    "note": ""
+  },
+  {
+    "target_nnv": 8000000,
+    "d": 320,
+    "n_layer": 7,
+    "vocab": 3200,
+    "batch": 8,
+    "block": 2048,
+    "grad_accum": 1,
+    "tokens_per_step": 16384,
+    "steps": 142,
+    "seconds": 30.32965209998656,
+    "tokens_per_sec": 76708.03451125082,
+    "achieved_tflops": 4.366393150377702,
+    "peak_mem_gb": 2.377658368,
+    "throttle_ratio": 0.9914286606239272,
+    "window_tps": [
+      77424.32391730655,
+      76760.69376104833
+    ],
+    "ok": true,
+    "note": ""
+  },
+  {
+    "target_nnv": 2000000,
+    "d": 192,
+    "n_layer": 5,
+    "vocab": 1664,
+    "batch": 8,
+    "block": 2048,
+    "grad_accum": 1,
+    "tokens_per_step": 16384,
+    "steps": 185,
+    "seconds": 30.12247090000892,
+    "tokens_per_sec": 100623.88341452766,
+    "achieved_tflops": 1.5295474271862057,
+    "peak_mem_gb": 1.039140352,
+    "throttle_ratio": 0.968055275768875,
+    "window_tps": [
+      102258.23160805495,
+      98991.62059897312
+    ],
+    "ok": true,
+    "note": ""
+  }
+]

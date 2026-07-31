@@ -1,0 +1,7 @@
+--- 2M: Nnv=2000000, V=1664, b=32, 600s ---
+  134,727 tok/s  2.048 TFLOP/s  peak 3.85 GB  throttle 2.6161  windows=38
+--- 4M: Nnv=4000000, V=2176, b=16, 600s ---
+  164,054 tok/s  4.502 TFLOP/s  peak 2.65 GB  throttle 0.9985  windows=39
+--- 8M: Nnv=8000000, V=3200, b=8, 600s ---
+  94,316 tok/s  5.369 TFLOP/s  peak 2.38 GB  throttle 0.9993  windows=39
+ALLDONE

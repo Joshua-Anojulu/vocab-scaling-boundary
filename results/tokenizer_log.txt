@@ -1,0 +1,25 @@
+training 20 tokenizers on the tokenizer_fit split (150 MB)
+corpus: 36,576 docs, 150.0 MB
+
+[ 1/20] V=  384  size=  384  tok/byte=0.5959  tok/char=0.5970  rt=True  unk=0   10.9s
+[ 2/20] V=  512  size=  512  tok/byte=0.5202  tok/char=0.5212  rt=True  unk=0   15.4s
+[ 3/20] V=  768  size=  768  tok/byte=0.4570  tok/char=0.4578  rt=True  unk=0   18.3s
+[ 4/20] V=  896  size=  896  tok/byte=0.4389  tok/char=0.4398  rt=True  unk=0   34.8s
+[ 5/20] V= 1024  size= 1024  tok/byte=0.4246  tok/char=0.4254  rt=True  unk=0   53.6s
+[ 6/20] V= 1152  size= 1152  tok/byte=0.4126  tok/char=0.4133  rt=True  unk=0   63.7s
+[ 7/20] V= 1536  size= 1536  tok/byte=0.3872  tok/char=0.3879  rt=True  unk=0   70.3s
+[ 8/20] V= 1664  size= 1664  tok/byte=0.3811  tok/char=0.3818  rt=True  unk=0   63.2s
+[ 9/20] V= 2176  size= 2176  tok/byte=0.3602  tok/char=0.3609  rt=True  unk=0   69.1s
+[10/20] V= 3200  size= 3200  tok/byte=0.3344  tok/char=0.3350  rt=True  unk=0   68.6s
+[11/20] V= 3456  size= 3456  tok/byte=0.3289  tok/char=0.3295  rt=True  unk=0   68.4s
+[12/20] V= 4224  size= 4224  tok/byte=0.3170  tok/char=0.3176  rt=True  unk=0   77.6s
+[13/20] V= 4480  size= 4480  tok/byte=0.3137  tok/char=0.3143  rt=True  unk=0  3890.1s
+[14/20] V= 6144  size= 6144  tok/byte=0.2966  tok/char=0.2972  rt=True  unk=0   31.0s
+[15/20] V= 6272  size= 6272  tok/byte=0.2954  tok/char=0.2960  rt=True  unk=0   35.5s
+[16/20] V= 6912  size= 6912  tok/byte=0.2903  tok/char=0.2908  rt=True  unk=0   71.8s
+[17/20] V= 8448  size= 8448  tok/byte=0.2805  tok/char=0.2810  rt=True  unk=0   75.0s
+[18/20] V= 8960  size= 8960  tok/byte=0.2779  tok/char=0.2784  rt=True  unk=0   77.8s
+[19/20] V=12672  size=12672  tok/byte=0.2641  tok/char=0.2646  rt=True  unk=0   88.3s
+[20/20] V=17792  size=17792  tok/byte=0.2532  tok/char=0.2537  rt=True  unk=0   89.5s
+
+TOKENIZERS_COMPLETE

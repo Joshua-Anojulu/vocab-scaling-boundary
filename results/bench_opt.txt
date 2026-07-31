@@ -1,0 +1,8 @@
+=== larger batches (memory headroom exists: 3.7/8.6 GB at b=8) ===
+    16M V= 4480 b=16:   47,716 tok/s   5.05 TFLOP/s  peak 6.92 GB
+    16M V= 4480 b=32:    2,388 tok/s   0.25 TFLOP/s  peak 13.45 GB
+     8M V= 3200 b=16:   72,914 tok/s   4.15 TFLOP/s  peak 4.47 GB
+     8M V= 3200 b=32:   10,386 tok/s   0.59 TFLOP/s  peak 8.73 GB
+     2M V= 1664 b=32:  196,336 tok/s   2.98 TFLOP/s  peak 3.85 GB
+     2M V= 1664 b=64:  193,255 tok/s   2.94 TFLOP/s  peak 7.64 GB
+DONE

@@ -1,0 +1,15 @@
+=== SUSTAINED 22-minute run: 16M, V=4480, b=8 (dominant cost config) ===
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+  File "C:\Users\josha\Projects\vocab-scaling-boundary\src\bench.py", line 214, in probe_subprocess
+    proc = subprocess.run(
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\josha\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\josha\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\josha\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\subprocess.py", line 1634, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['C:\\Users\\josha\\Projects\\vocab-scaling-boundary\\.venv\\Scripts\\python.exe', '-m', 'src.bench', '{"target": 16000000, "vocab": 4480, "block": 2048, "batch": 8, "seconds": 1320.0, "chunk": 4096, "grad_accum": 1, "compile_model": false}']' timed out after 2400 seconds

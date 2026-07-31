@@ -1,0 +1,5 @@
+=== torch.compile A/B (best batch per scale) ===
+    16M b= 8: eager  5.41 | compiled FAILED OOM in warmup: TritonMissing
+     8M b= 8: eager  4.65 | compiled FAILED OOM in warmup: TritonMissing
+     2M b=32: eager  2.92 | compiled FAILED OOM in warmup: TritonMissing
+DONE

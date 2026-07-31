@@ -1,0 +1,23 @@
+# Environments
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Orchestration state (not part of the project)
+.omc/
+
+# Derived data — tens of GB, never committed
+data/
+tokenizers/
+checkpoints/
+runs/
+*.bin
+*.npy
+*.arrow
+
+# Reference data pulled from upstream (regenerable)
+reference/exp_data.csv
+
+# Results that ARE committed live in results/ — do not ignore them
+!results/

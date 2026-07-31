@@ -1,0 +1,7 @@
+device: NVIDIA GeForce RTX 4060 Laptop GPU
+  16M d=384 L=9 V= 4480 b=4:   30,192 tok/s   3.20 TFLOP/s  peak 2.08 GB  steps=111
+  16M d=384 L=9 V= 4480 b=8:   48,183 tok/s   5.10 TFLOP/s  peak 3.69 GB  steps=89
+  16M d=384 L=9 V=17792 b=4:   35,290 tok/s   4.82 TFLOP/s  peak 2.75 GB  steps=130
+   8M d=320 L=7 V= 3200 b=8:   76,708 tok/s   4.37 TFLOP/s  peak 2.38 GB  steps=142
+   2M d=192 L=5 V= 1664 b=8:  100,624 tok/s   1.53 TFLOP/s  peak 1.04 GB  steps=185
+DONE
