@@ -33,3 +33,31 @@
 [11/20] V= 3456 final_test     tokens=  26,359,258 tok/byte=0.3351  203.4s
 [12/20] V= 4224 train          tokens=  77,437,313 tok/byte=0.3213  624.4s
 [12/20] V= 4224 selection_val  tokens=  25,369,646 tok/byte=0.3226  206.1s
+[12/20] V= 4224 final_test     tokens=  25,378,042 tok/byte=0.3227  213.5s
+[13/20] V= 4480 train          tokens= 387,023,322 tok/byte=0.3164 1575.1s
+[13/20] V= 4480 selection_val  tokens=  25,093,783 tok/byte=0.3191  200.0s
+[13/20] V= 4480 final_test     tokens=  25,103,490 tok/byte=0.3192  213.4s
+[14/20] V= 6144 train          tokens= 742,567,412 tok/byte=0.3007 2611.5s
+[14/20] V= 6144 selection_val  tokens=  23,742,122 tok/byte=0.3019  335.1s
+[14/20] V= 6144 final_test     tokens=  23,737,707 tok/byte=0.3018  346.6s
+[15/20] V= 6272 train          tokens= 167,375,606 tok/byte=0.2976 2038.6s
+[15/20] V= 6272 selection_val  tokens=  23,657,231 tok/byte=0.3008  338.6s
+[15/20] V= 6272 final_test     tokens=  23,650,814 tok/byte=0.3007  345.2s
+[16/20] V= 6912 train          tokens=  33,868,268 tok/byte=0.2867  510.4s
+[16/20] V= 6912 selection_val  tokens=  23,276,298 tok/byte=0.2960  363.2s
+[16/20] V= 6912 final_test     tokens=  23,269,008 tok/byte=0.2958  363.6s
+[17/20] V= 8448 train          tokens=  63,886,826 tok/byte=0.2762 1001.1s
+[17/20] V= 8448 selection_val  tokens=  22,544,668 tok/byte=0.2867  398.5s
+[17/20] V= 8448 final_test     tokens=  22,526,784 tok/byte=0.2864  433.4s
+[18/20] V= 8960 train          tokens= 320,596,387 tok/byte=0.2813 32054.6s
+[18/20] V= 8960 selection_val  tokens=  22,343,608 tok/byte=0.2841  294.4s
+[18/20] V= 8960 final_test     tokens=  22,322,452 tok/byte=0.2838  299.2s
+[19/20] V=12672 train          tokens= 139,992,393 tok/byte=0.2690 1748.0s
+[19/20] V=12672 selection_val  tokens=  21,254,008 tok/byte=0.2703  293.7s
+[19/20] V=12672 final_test     tokens=  21,235,568 tok/byte=0.2700  311.2s
+[20/20] V=17792 train          tokens= 272,833,836 tok/byte=0.2571 3143.5s
+[20/20] V=17792 selection_val  tokens=  20,362,924 tok/byte=0.2589  319.1s
+[20/20] V=17792 final_test     tokens=  20,340,415 tok/byte=0.2586  330.7s
+
+elapsed 978.4 min
+TOKENIZE_COMPLETE

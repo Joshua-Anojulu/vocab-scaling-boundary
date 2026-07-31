@@ -24,10 +24,34 @@ Write-Host "=== preflight ===" -ForegroundColor Cyan
 if (-not (Test-Path $Src)) { throw "source missing: $Src" }
 if (Test-Path $Dst)        { throw "destination already exists: $Dst" }
 
-# Refuse to run while anything is working in the tree.
+# Refuse to run while anything holds the tree.
+#
+# A command-line filter is NOT sufficient and was actively misleading during development:
+# `.venv\Scripts\python.exe` is a shim that execs the real uv-managed interpreter, so the
+# process doing the work runs as a CHILD whose command line contains no project path.
+# Filtering on '*vocab-scaling*' therefore matched only the idle shim (1 MB, 0 s CPU)
+# while a 1.5 GB child burned 60 s of CPU per 40 s of wall clock.
+#
+# The decisive test is a file-system one: if any handle is open anywhere in the tree,
+# Windows refuses the rename below. That cannot be fooled by process-naming.
+$probe = Join-Path $Src '.movelock'
+try {
+    New-Item -ItemType File -Path $probe -Force | Out-Null
+    Rename-Item -LiteralPath $probe -NewName '.movelock.ok' -ErrorAction Stop
+    Remove-Item -LiteralPath (Join-Path $Src '.movelock.ok') -Force
+} catch {
+    throw "cannot write/rename inside the tree - something holds it: $_"
+}
+
+# Informational only, now that the filter's limits are understood.
 $busy = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
-        Where-Object { $_.CommandLine -like '*vocab-scaling*' }
-if ($busy) { throw "$($busy.Count) python process(es) still active in the tree - wait for them to exit" }
+        Where-Object { $_.CommandLine -like '*vocab-scaling*' -or $_.ExecutablePath -like '*vocab-scaling*' }
+if ($busy) {
+    foreach ($p in $busy) {
+        $kids = Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.ProcessId)"
+        throw "python still active in the tree (pid $($p.ProcessId), $($kids.Count) child(ren)) - wait for exit"
+    }
+}
 
 Push-Location $Src
 $dirty = git status --porcelain | Where-Object { $_ -notmatch '^\?\? \.omc' }
