@@ -1233,7 +1233,7 @@ returned, both of which had changed the answer by an order of magnitude:
    outside the measured grid. Across three fitting windows the floor fell from 0.04732 to
    **0.00965**.
 
-Together these cut the reported margins from 6,699×/63× to **57×/9×**.
+Together these cut the reported margins from 6,699×/63× to **57×/8.7×**.
 
 ## Round 1 — VERDICT: CHANGES REQUIRED (3 blocking, 4 advisory)
 
@@ -1259,7 +1259,7 @@ operates.
 a confirmatory run is fitted on that run's consumed prefix, and smoothing matters more on
 less text — so the full-array bound may be optimistic. Refitting every vocabulary on a
 common 33M-token prefix (the smallest `T_target` in the grid) degrades the P2 margin from
-**57× to 37×**. It still clears; the full-array figure alone would have overstated headroom.
+**57× to 36.6×**. It still clears; the full-array figure alone would have overstated headroom.
 
 ## Round 2 — VERDICT: CHANGES REQUIRED (1 blocking, 1 advisory)
 
@@ -1290,7 +1290,7 @@ Neither was requested by the reviewer.
 
 1. **P4 at the smallest training budget.** The prefix robustness check had been applied to
    P2 but not P4 — an inconsistency in the author's own analysis. Refitting the drop-EOS
-   comparison on the 33M prefix gives **9.4×** against 9.0× on the full arrays: marginally
+   comparison on the 33M prefix gives **9.4×** against 8.7× on the full arrays: marginally
    *better*, not worse. The asymmetry is expected and is now stated: P2's sensitivity is
    driven by how much text the unigram is fitted on, P4's by the document rate, which a
    prefix does not change. The consequence matters for the decision — **P4's thin margin is
@@ -1299,3 +1299,43 @@ Neither was requested by the reviewer.
 2. **A stale line removed** from `scripts/p2_smoothing_sensitivity.py`, which still printed
    the superseded claim that a spread `S` bounds the perturbation of cross-vocabulary `L_u`
    differences by `S`.
+
+## Round 3 — VERDICT: CHANGES REQUIRED (1 blocking, in two parts)
+
+Both parts concerned the P4 prefix check the author had added between rounds — the addition
+the reviewer was explicitly asked to attack.
+
+**(a) The number existed only in prose.** `worst_case_prefix` recorded the P2 prefix values
+for all 20 vocabularies but nothing for P4, so 4.166e−04 and the 9.4× margin were
+unconfirmable from the record. **This is the same fault the author had just fixed for P2,
+repeated immediately for P4** — a check run inline, cited, and never made reproducible.
+`scripts/p2_smoothing_sensitivity.py` now computes both, and the JSON carries per-vocabulary
+no-EOS `H`, `n_docs_in_prefix`, `eos_share_prefix`, and a `slopes` block. All four margins
+are now derivable from the two JSON artifacts alone.
+
+**(b) The reasoning was not merely unsupported — it was wrong.** The author had written that
+a prefix cannot matter because it "does not change the document rate." The reviewer objected
+that a fixed *token* prefix can cover different document extents by vocabulary. Measured, it
+does, and substantially: 33M tokens covers **13,137 documents at V=384 and 30,185 at
+V=17792, a 2.3× range**, because fertility is higher at small V.
+
+The mechanism is **withdrawn**. The insensitivity (0.93×, margin 9.4× vs 8.7×) is now
+reported as an empirical result. A candidate explanation — that the slope measures the
+cross-V *shape* of the perturbation, and the train-side EOS-share ramp is similar under both
+regimes (2.15× full, 2.30× prefix), with `selection_val` identical — is offered explicitly
+as "a plausible reading of a measurement," not a derivation.
+
+The operative conclusion survives because it never depended on the mechanism: **P4's margin
+does not improve when the fit set changes, so more data will not fix it.**
+
+**This is the third time in this project that a plausible mechanism was asserted ahead of
+the measurement and turned out wrong** — after the predicted fertility flattening inside
+Tao's fitted range (refuted by the inside-range control) and the tilt-is-worst-case argument
+(refuted by computing the actual slope). The pattern is consistent: the *numbers* have held
+up, the *explanations offered for them* have not. Mechanism claims in the write-up must be
+labelled as readings of measurements unless separately tested.
+
+**Precision correction found while verifying (a).** The full-array P4 margin is **8.7×**, not
+the 9.0× stated in rounds 1–3 prose, and P2's prefix margin is **36.6×**, not 37×. Both came
+from rounding a printed value and then quoting the rounded figure as if measured. Corrected
+throughout.

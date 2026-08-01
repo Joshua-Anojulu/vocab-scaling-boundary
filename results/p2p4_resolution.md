@@ -139,10 +139,10 @@ Taking `a = 0.00965`, the slope needed to displace the argmin by the M1 margin
 | add-0.01 | 5.15e−06 | 5.19e−05 | 75× |
 | add-1e−4 | 7.50e−06 | 6.05e−05 | 65× |
 | add-1e−6 | 1.10e−05 | 6.87e−05 | **57×** |
-| **drop EOS** | 1.17e−03 | 4.48e−04 | **9×** |
+| **drop EOS** | 1.17e−03 | 4.48e−04 | **8.7×** |
 
 So P2 clears the margin by at least 57× under the most pessimistic curvature available,
-while **P4 clears it by only 9×**. That gap is the reason the two are resolved differently
+while **P4 clears it by only 8.7×**. That gap is the reason the two are resolved differently
 below.
 
 ### The bound depends on how much text the unigram is fitted on
@@ -161,12 +161,12 @@ add-1 vs add-1e-6 : spread 5.02e-05, max local slope 1.07e-04  ->  37x margin
                      (versus 1.10e-05 / 6.87e-05 -> 57x on the full arrays)
 ```
 
-The margin degrades by about a third and P2 still clears it by 37×. This is recorded
+The margin degrades by about a third and P2 still clears it by 36.6×. This is recorded
 because the full-array number alone would have overstated the headroom.
 
 **P4 does not degrade the same way.** Refitting the drop-EOS comparison on the same 33M
 prefix gives a max local slope of **4.166e−04** against 4.477e−04 on the full arrays — a
-margin of **9.4×** versus 9.0×, marginally *better*, not worse.
+margin of **9.4×** versus 8.7×, marginally *better*, not worse.
 
 **A mechanism offered for this in an earlier draft was wrong, and is withdrawn.** That draft
 claimed the prefix cannot matter because it "does not change the document rate." It does: a
@@ -216,7 +216,7 @@ Rationale, in the order that carries the weight:
 3. The choice is **not decision-relevant, conditional on the Stage B.7 below-range
    curvature check** (§4): every smoothing strength from add-1 to add-1e−6 perturbs
    cross-vocabulary `L_u` differences by ≤1.1e−5 nats, whose largest local slope is at
-   least 57× below what would move `θ` by the M1 margin — 37× on the smallest training
+   least 57× below what would move `θ` by the M1 margin — 36.6× on the smallest training
    budget — and that is under the most pessimistic curvature recoverable from Tao's data,
    not a favourable one. The conditional is not decorative: the curvature that converts
    nats into `θ` is measured above 33M and this study runs below it.
@@ -233,7 +233,7 @@ loss — but it forbids any direct comparison of our `L_u` numbers against their
 ### P4 — KEEP the EOS separator, with a pilot-conditional gate on M2
 
 The metric-side effect is bounded above: 1.17e−03 nats of cross-V spread, whose largest
-local slope sits **9×** below the M1 margin. That is the whole margin, and it is thin —
+local slope sits **8.7×** below the M1 margin. That is the whole margin, and it is thin —
 one order of magnitude, against a curvature floor that itself moved 5× when the fitting
 window changed. P4 is therefore **not** declared settled the way P2 is.
 
@@ -287,7 +287,7 @@ The curvature bound is measured on Tao's families at `N_nv ≥ 33M`. This study 
 bound is therefore not fully non-circular**: it assumes `L_u` below 33M is not dramatically
 flatter in `V` than anything observed above it. If it is, the margins shrink in proportion.
 
-That risk falls almost entirely on P4. A 9× margin is erased by a 9× flattening, which is
+That risk falls almost entirely on P4. An 8.7× margin is erased by an 8.7× flattening, which is
 not obviously implausible. The P2 margin of 57× has enough headroom that no flattening
 consistent with the study being worth running would reach it.
 
