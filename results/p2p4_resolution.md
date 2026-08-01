@@ -164,6 +164,13 @@ add-1 vs add-1e-6 : spread 5.02e-05, max local slope 1.07e-04  ->  37x margin
 The margin degrades by about a third and P2 still clears it by 37×. This is recorded
 because the full-array number alone would have overstated the headroom.
 
+**P4 does not degrade the same way.** Refitting the drop-EOS comparison on the same 33M
+prefix gives a max local slope of 4.166e−04, a margin of **9.4×** against 9.0× on the full
+arrays — marginally *better*, not worse. The asymmetry is expected: P2's sensitivity is
+driven by how much text the unigram is fitted on, whereas P4's is driven by the document
+rate, which the prefix does not change. So P4's thin margin is a property of the packing
+convention itself, not an artifact of fit-set size, and it will not improve with more data.
+
 ### Zero-frequency events are real but negligible
 
 They do occur, so an unsmoothed MLE would be undefined and *some* convention is required:
