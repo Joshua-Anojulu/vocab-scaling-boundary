@@ -165,11 +165,27 @@ The margin degrades by about a third and P2 still clears it by 37×. This is rec
 because the full-array number alone would have overstated the headroom.
 
 **P4 does not degrade the same way.** Refitting the drop-EOS comparison on the same 33M
-prefix gives a max local slope of 4.166e−04, a margin of **9.4×** against 9.0× on the full
-arrays — marginally *better*, not worse. The asymmetry is expected: P2's sensitivity is
-driven by how much text the unigram is fitted on, whereas P4's is driven by the document
-rate, which the prefix does not change. So P4's thin margin is a property of the packing
-convention itself, not an artifact of fit-set size, and it will not improve with more data.
+prefix gives a max local slope of **4.166e−04** against 4.477e−04 on the full arrays — a
+margin of **9.4×** versus 9.0×, marginally *better*, not worse.
+
+**A mechanism offered for this in an earlier draft was wrong, and is withdrawn.** That draft
+claimed the prefix cannot matter because it "does not change the document rate." It does: a
+fixed *token* prefix does not fix documents, because fertility is higher at small V, so 33M
+tokens covers **13,137 documents at V=384 and 30,185 at V=17792 — a 2.3× range**. The
+document rate varies substantially. All per-vocabulary document counts and EOS shares are
+now recorded in `worst_case_prefix` in the result JSON rather than asserted.
+
+The insensitivity is therefore **empirical, not derived**. What it appears to reflect is
+that the slope measures the *cross-V shape* of the perturbation, not its absolute level, and
+that shape is preserved: the train-side EOS share follows a similar monotone ramp in V under
+both regimes — 4.20e−04 → 9.02e−04 (2.15×) on the full arrays, 3.98e−04 → 9.15e−04 (2.30×)
+on the prefix — while the evaluation side is the same `selection_val` in both. That is a
+plausible reading of a measurement, offered as such.
+
+The operative conclusion survives either way, because it rests on the measurement rather
+than the mechanism: **P4's thin margin does not improve when the fit set changes, so it is
+not an artifact of fit-set size and will not be fixed by more data.** That is the argument
+for gating it rather than waiting for a better measurement.
 
 ### Zero-frequency events are real but negligible
 

@@ -137,19 +137,51 @@ def main() -> None:
     print("argmin. See scripts/p2p4_decision_relevance.py for the conversion.")
 
     # --- worst-case robustness: refit every vocabulary on the SMALLEST training budget ----
+    #
+    # NOTE on what a fixed TOKEN prefix does: it does NOT hold documents constant across V.
+    # Fertility is higher at small V, so 33M tokens covers FEWER documents there, and the
+    # EOS share of the prefix therefore varies with V in its own way. The per-V EOS share is
+    # recorded below so this is a measured quantity rather than an assumed-harmless one.
     print(f"\n=== refit on a common {WORST_CASE_PREFIX:,}-token prefix (smallest T_target) ===")
     worst = {}
     for V in vocabs:
-        tr, _ = counts_of(TOKENS / f"v{V}_train.npy", V, limit=WORST_CASE_PREFIX)
+        tr, n_tr = counts_of(TOKENS / f"v{V}_train.npy", V, limit=WORST_CASE_PREFIX)
         ev, _ = counts_of(TOKENS / f"v{V}_selection_val.npy", V)
-        worst[V] = {f"add{a:g}": h_unigram(tr, ev, a) for a in (1.0, 1e-6)}
+        eos_id = Tokenizer.from_file(str(ROOT / "tokenizers" / f"bpe_v{V}.json")).token_to_id("<eos>")
+        tr_ne, ev_ne = tr.copy(), ev.copy()
+        tr_ne[eos_id] = 0
+        ev_ne[eos_id] = 0
+        worst[V] = {
+            "add1": h_unigram(tr, ev, 1.0),
+            "add1e-06": h_unigram(tr, ev, 1e-6),
+            "no_eos_add1": h_unigram(tr_ne, ev_ne, 1.0),
+            "eos_share_prefix": float(tr[eos_id] / n_tr),
+            "n_docs_in_prefix": int(tr[eos_id]),
+        }
+
     xw = np.log(np.array(vocabs, dtype=float))
-    dw = np.array([worst[V]["add1e-06"] - worst[V]["add1"] for V in vocabs])
-    slope_w = float(np.abs(np.diff(dw) / np.diff(xw)).max())
-    dfull = np.array([r["H"]["add1e-06"] - r["H"]["add1"] for r in rows])
-    slope_f = float(np.abs(np.diff(dfull) / np.diff(np.log(np.array([r["V"] for r in rows], dtype=float)))).max())
-    print(f"add1 vs add1e-6 max local slope: {slope_f:.3e} (full arrays) "
-          f"-> {slope_w:.3e} (worst-case prefix), {slope_w / slope_f:.2f}x worse")
+    xf = np.log(np.array([r["V"] for r in rows], dtype=float))
+
+    def max_slope(d: np.ndarray, x: np.ndarray) -> float:
+        return float(np.abs(np.diff(d) / np.diff(x)).max())
+
+    slopes = {}
+    for label, key in (("add1 vs add1e-6", "add1e-06"), ("drop EOS", "no_eos_add1")):
+        d_w = np.array([worst[V][key] - worst[V]["add1"] for V in vocabs])
+        if key == "add1e-06":
+            d_f = np.array([r["H"]["add1e-06"] - r["H"]["add1"] for r in rows])
+        else:
+            d_f = np.array([r["H_no_eos_add1"] - r["H"]["add1"] for r in rows])
+        sf, sw = max_slope(d_f, xf), max_slope(d_w, xw)
+        slopes[key] = {"max_slope_full": sf, "max_slope_prefix": sw,
+                       "spread_prefix": float(d_w.max() - d_w.min())}
+        print(f"{label:>16}: max local slope {sf:.3e} (full) -> {sw:.3e} (prefix), "
+              f"{sw / sf:.2f}x")
+
+    print(f"\n{'V':>7} {'docs in prefix':>15} {'EOS share':>11}   (a fixed TOKEN prefix does "
+          f"not fix documents)")
+    for V in vocabs:
+        print(f"{V:>7} {worst[V]['n_docs_in_prefix']:>15,} {worst[V]['eos_share_prefix']:>11.6f}")
 
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps({
@@ -158,8 +190,7 @@ def main() -> None:
         "worst_case_prefix": {
             "n_tokens": WORST_CASE_PREFIX,
             "H": {str(V): worst[V] for V in vocabs},
-            "max_slope_full": slope_f,
-            "max_slope_prefix": slope_w,
+            "slopes": slopes,
         },
     }, indent=2))
     print(f"\nwrote {OUT.relative_to(ROOT)}")
