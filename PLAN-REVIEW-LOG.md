@@ -1296,6 +1296,14 @@ Neither was requested by the reviewer.
    prefix does not change. The consequence matters for the decision — **P4's thin margin is
    a property of the packing convention and will not improve with more data**, which is the
    argument for gating it rather than waiting for a better measurement.
+
+   > ⚠️ **WITHDRAWN — retained only as a record of what was claimed at the time.** The
+   > sentence above beginning "The asymmetry is expected" is **wrong** and was refuted in
+   > round 3: a fixed *token* prefix does **not** hold the document rate constant. It covers
+   > 13,137 documents at V=384 and 30,185 at V=17792, a 2.3× range, because fertility is
+   > higher at small V. The 9.4× measurement stands; the explanation does not. See round 3
+   > below and `results/p2p4_resolution.md`, which carries the corrected treatment. Do not
+   > cite this paragraph's reasoning.
 2. **A stale line removed** from `scripts/p2_smoothing_sensitivity.py`, which still printed
    the superseded claim that a spread `S` bounds the perturbation of cross-vocabulary `L_u`
    differences by `S`.
@@ -1339,3 +1347,33 @@ labelled as readings of measurements unless separately tested.
 the 9.0× stated in rounds 1–3 prose, and P2's prefix margin is **36.6×**, not 37×. Both came
 from rounding a printed value and then quoting the rounded figure as if measured. Corrected
 throughout.
+
+## Round 4 — VERDICT: APPROVED (1 advisory)
+
+The reviewer confirmed both round-3 fixes: the P4 prefix margin is now independently
+derivable from the JSON artifacts without trusting the prose, and the withdrawal of the
+document-rate mechanism is complete in `results/p2p4_resolution.md` — the replacement
+explanation does not smuggle the same claim back in softer language, and the operative
+conclusion survives without it.
+
+**Advisory, applied.** `PLAN-REVIEW-LOG.md` still preserved the withdrawn mechanism as
+historical process text. It is now annotated in place with an explicit WITHDRAWN block
+pointing to the refutation, rather than silently deleted — the record of what was claimed at
+the time is worth keeping, provided nobody can cite it by accident.
+
+## Outcome
+
+**A3 (unigram smoothing) and A4 (EOS packing with an M2 gate) are ADOPTED** into
+`AMENDMENTS.md`, dated 2026-08-01. P2 and P4 are marked CLOSED and superseded rather than
+deleted. The `OPEN ITEM` docstring in `src/metrics.py` is replaced by a pointer to A3 and
+carries the curvature conditional.
+
+**Tally across the amendment track: 4 rounds, 12 findings, 0 rejected.** Three blocking in
+round 1, one blocking in each of rounds 2 and 3, the rest advisory. The reviewer corrected
+the author on one matter of fact (`N_v = V·d` is Tao's analytical proxy, not a definition of
+the output head) and refuted one piece of reasoning outright (the document-rate mechanism).
+The author independently found two order-of-magnitude errors before the reviewer returned,
+added two robustness checks unprompted, and found one precision error (8.7× / 36.6×) while
+verifying a fix.
+
+`PLAN.md` was not edited at any point. Its `final_body_sha256` binding is intact.

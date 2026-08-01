@@ -96,7 +96,7 @@ the saving became visible only after the budget was measured. If taken, it must 
 recorded here *before* any confirmatory run, noting that the trigger was reading the
 reference schedule rather than the cost.
 
-### P2 — Unigram smoothing convention for `L_u`
+### P2 — Unigram smoothing convention for `L_u`  ·  **CLOSED, superseded by A3**
 
 The plan requires matching Tao's exact smoothing, special-token, boundary and
 zero-frequency conventions. Their released code does not expose the unigram construction.
@@ -112,7 +112,7 @@ de-prioritising 16M would save ~50 h in one step at the cost of the scale neares
 anchor. **Not adopted** — reordering after seeing costs is exactly the post-hoc freedom
 the preregistration exists to prevent.
 
-### P4 — Document packing convention (EOS separator)
+### P4 — Document packing convention (EOS separator)  ·  **CLOSED, superseded by A4**
 
 Flat token streams need a document boundary marker or the model learns to run one
 document into the next. `src/tokenize_corpus.py` inserts `<eos>` after every document.
@@ -130,3 +130,122 @@ normalises against will contain that EOS mass.
 **Status: implemented, unreconciled.** Like P2, this is a convention that must be either
 matched to theirs or fixed here with its rationale before any confirmatory run. Recorded
 now so the choice is dated and visible rather than implicit in the code.
+
+---
+
+## A3 — Unigram smoothing convention for `L_u` (ADOPTED, discretionary) — 2026-08-01
+
+**Supersedes P2**, which is closed.
+
+**Preregistered:** match Tao's exact smoothing / special-token / boundary / zero-frequency
+conventions.
+
+**Adopted:** add-1 (Laplace) over the full vocabulary, unigram fitted on the **training
+split only** — specifically each vocabulary's own tokenized train array, which is the prefix
+that configuration consumes. This is what `src/metrics.py` already implements; what changes
+is that it is now a dated, justified choice rather than an open item.
+
+**Why matching is impossible, not merely unattempted.** `reference/tinyllama_pretrain.py`
+does expose the `L_u` computation — `validate_pplu` at lines 406–435 — which **confirms the
+definition and sign convention** used here (`L_u = CE_model − H_unigram`, negative when the
+model beats unigram). The earlier record in P2 that "their released code does not expose the
+unigram construction" was half wrong and is corrected.
+
+What the release does *not* determine is the estimator. The lookup table is loaded from an
+external file that is not published, via a loader with two defects:
+
+* `json.load` returns string keys, so `max(keys()) + 1` raises
+  `TypeError: can only concatenate str (not "int") to str`. Verified directly. The released
+  script cannot run on an ordinary JSON object without patching keys to integers.
+* `torch.empty`, not `torch.zeros` — any id absent from the dict retains uninitialised
+  memory as its unigram probability, so no zero-frequency convention is representable.
+
+So the exact smoothing and zero-frequency convention is **not recoverable from the release**.
+This is a claim about what the release determines, not about what the authors ran.
+
+**Why a convention is required.** Zero-frequency evaluation tokens occur in 3 of 20
+vocabularies (V=384: ids 144/145, 36 instances; V=3456: id 1868, 1 instance; V=6912: ids
+1770/1868, 4 instances). Unsmoothed MLE would be undefined.
+
+**Why the choice cannot change a conclusion.** Smoothing enters `L_u` only through
+`H_unigram`, so its entire effect is computable without training anything. Both M1 and M2
+compare `L_u` across vocabularies, so what matters is the local slope of the induced shift
+in `ln V`, against the curvature of `L_u` about its minimum. Measured in
+`results/p2_smoothing_sensitivity.json` and `results/p2p4_decision_relevance.json`:
+
+* Every smoothing strength from add-1 to add-1e−6 agrees to within **1.1e−5 nats** of
+  cross-vocabulary spread; max local slope 6.87e−05.
+* The slope that would displace `θ` by the M1 margin `ln 1.5` is **3.913e−03**, using the
+  most pessimistic curvature recoverable from Tao's data (0.00965, the minimum across three
+  fitting windows over all six of their `N_nv` families).
+* Margin: **≥57×**, degrading to **36.6×** when every vocabulary is refitted on a common
+  33M-token prefix, the smallest `T_target` in the grid.
+
+**Conditional, and it is not decorative.** That curvature is measured at `N_nv ≥ 33M`; this
+study runs at 2M–16M, which is in part what the study is for. Stage B.7 must record its own
+measured `d²L_u/d(lnV)²`. **If the pilot's curvature falls below 0.00965, this conversion is
+invalid in our regime and both A3 and A4 must be re-derived against the pilot's value before
+any confirmatory run.**
+
+**Reported as a limitation.** `L_u` here is not guaranteed numerically comparable to their
+published `Lossu` column, because the unigram estimator differs by an unknown amount. This
+does not affect the test, which is about the *location of the optimum over V*, but it
+forbids direct comparison of absolute `L_u` values against their table.
+
+---
+
+## A4 — Document packing convention: EOS separator (ADOPTED with a gate) — 2026-08-01
+
+**Supersedes P4**, which is closed.
+
+**Adopted:** keep the `<eos>` separator inserted after every document, as
+`src/tokenize_corpus.py` implements. Removing it would require retokenizing 5.1B tokens.
+
+**Metric-side effect, measured.** Dropping EOS from both the fitted unigram and the
+evaluation stream shifts `H_unigram` by 2.8e−04 to 1.5e−03 nats depending on `V`, a
+cross-vocabulary spread of **1.17e−03** with max local slope 4.48e−04 — a margin of only
+**8.7×** against the M1 margin, versus ≥57× for A3. On the 33M prefix it is **9.4×** —
+essentially unchanged. An earlier draft attributed this to the document rate being fixed by
+a prefix; that is wrong and was withdrawn in review round 3 (33M tokens covers 13,137
+documents at V=384 and 30,185 at V=17792). The insensitivity is empirical. **What it
+establishes is that the margin does not improve when the fit set changes, so more data will
+not fix it.**
+
+**Gate on M2, preregistered before the pilot runs.** M2 has no equivalence margin — it is a
+sign test on `D` — so a 1.17e−03 nat perturbation flips it whenever `|D|` is that small.
+Stage B.7 runs 3 seeds with the `1.1·C` configuration matched-seed inside the same bootstrap
+block, so a **paired** interval for `D_pilot` is available by construction. Let
+`B = 1.2e−02` nats, ten times the measured metric-side spread.
+
+> **Pass** only if the paired 95% interval for `D_pilot` lies **wholly outside** `[−B, +B]`.
+> Otherwise the packing convention can flip the M2 sign test and **must be resolved before
+> any confirmatory run.**
+
+A point estimate is explicitly insufficient: with 3 seeds, `|D̂_pilot|` above `B` can arise
+from a true `D` inside the band, passing a point-estimate gate while leaving the sign
+undetermined.
+
+**What passing establishes — and what it does not.** It bounds the metric side only.
+Removing EOS would also change the training token stream and hence `CE_model`, and that
+effect is measured nowhere in this study. On a pass the correct statement is the weaker one:
+*metric-side P4 is not capable of flipping the M2 sign test at the observed effect size; EOS
+remains a preregistered convention and a reported limitation, and its training-side effect
+is unmeasured.* Establishing more would require a paired no-EOS training arm, which is not
+budgeted. **Declining to run it is a scope decision, recorded here rather than left
+implicit.**
+
+---
+
+## Review provenance for A3 and A4
+
+Both were submitted for adversarial cross-model review before adoption, because they fix the
+definition of the primary metric and touch the headline novelty claim. Three rounds; full
+record in `PLAN-REVIEW-LOG.md`. Round 1 returned 3 blocking and 4 advisory findings, all
+accepted and applied, including a correction of fact from the reviewer: `N_v = V·d` is Tao's
+analytical proxy justified by output-layer FLOP dominance, **not** a definition of the output
+head. Round 2 returned 1 blocking (already fixed in-tree when it landed; the review clone
+predated the fix) and 1 advisory. The author independently found and corrected two
+order-of-magnitude errors in the conversion before the reviewer returned, and added two
+robustness checks the reviewer did not request.
+
+`PLAN.md` was not edited at any point.

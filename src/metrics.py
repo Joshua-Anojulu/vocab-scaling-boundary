@@ -68,11 +68,23 @@ def fit_unigram(
     infinite surprisal and make `L_u` undefined the moment it appears in evaluation.
     Every id in [0, V) receives mass, so `log_prob` is total.
 
-    OPEN ITEM: the plan requires matching Tao's exact smoothing / special-token /
-    boundary / zero-frequency conventions. Their released code does not expose the
-    unigram construction, so add-1 over the full vocabulary is used as a documented,
-    explicit default. It must be reconciled against their implementation before any
-    confirmatory run, and the choice recorded in Preregistration I.
+    SETTLED by amendment A3 (2026-08-01); this is no longer an open item.
+
+    Matching Tao's estimator is impossible, not merely unattempted: their `validate_pplu`
+    confirms the DEFINITION of `L_u` used here, but the unigram table is loaded from a file
+    that is not in the release, by a loader that cannot run on an ordinary JSON object
+    (string keys) and that leaves absent ids uninitialised (`torch.empty`). A convention IS
+    required, because zero-frequency evaluation tokens occur in 3 of 20 vocabularies.
+
+    add-1 is chosen because the choice cannot change a conclusion: smoothing enters `L_u`
+    only through `H_unigram`, and every strength from add-1 to add-1e-6 agrees to within
+    1.1e-5 nats of cross-vocabulary spread -- at least 57x below what would move `theta` by
+    the M1 margin, 36.6x on the smallest training budget. See `AMENDMENTS.md` A3 and
+    `results/p2p4_resolution.md`.
+
+    CONDITIONAL: that conversion uses curvature measured at `N_nv >= 33M`. If the Stage B.7
+    pilot's own `d2L_u/d(lnV)^2` falls below 0.00965, A3 must be re-derived before any
+    confirmatory run.
     """
     counts: Counter[int] = Counter()
     total = 0
