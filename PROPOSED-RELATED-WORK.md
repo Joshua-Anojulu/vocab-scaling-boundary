@@ -24,7 +24,7 @@ Target: Stage F related work, plus one qualifier on the novelty claim.
 > **output-weighted proxy for vocabulary allocation**, not the input-side capacity that
 > Over-Tokenized manipulates. The present study holds `V_tok = V_head = V` by construction — one vocabulary
 > serving both sides, untied weights, sizes divisible by the padding quantum so no rows go
-> unused. It therefore tests the **output-head allocation law under coupling**, and makes
+> unused. It therefore tests the **vocabulary-allocation law under coupling**, and makes
 > no claim about the decoupled input-side regime Over-Tokenized studies.
 >
 > The two results are in fact concordant on the output side. Over-Tokenized's own §3.1
@@ -62,8 +62,8 @@ comparison valid — but it must be reported, not assumed harmless.
 
 | element | affected? | why |
 |---|---|---|
-| **H₀** | no | Stated over `N_v = V·d`, the output head, at A1-implied compute-optimal `C`. Over-Tokenized makes no claim about that quantity under coupling. |
-| **M1** (`θ = ln(N_v*/N_v_pred)`) | no | Both terms are output-head parameters. The margin `ln 1.5` is calibrated to Tao's own grid spacing, which is also output-side. |
+| **H₀** | no | Stated over `N_v = V·d` — Tao's output-weighted vocabulary-allocation proxy — at A1-implied compute-optimal `C`. Over-Tokenized makes no claim about that quantity under coupling. |
+| **M1** (`θ = ln(N_v*/N_v_pred)`) | no | Both terms are the same `V·d` proxy, so the proxy's known bias cancels in the ratio. The margin `ln 1.5` is calibrated to Tao's own grid spacing, which is defined in the same units. |
 | **M2** (`D = L_u(V_run,1.1C) − L_u(V*,C)`) | no | A loss-regret statistic. Independent of how vocabulary is allocated between sides. |
 | **Architecture family** | no | `V_tok = V_head = V` was already a construction constraint, stated in the accounting section. Over-Tokenized does not bear on the depth/width/FFN rule. |
 | **Grids, budget, decision procedure** | no | Untouched. |
