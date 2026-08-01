@@ -1260,3 +1260,42 @@ a confirmatory run is fitted on that run's consumed prefix, and smoothing matter
 less text — so the full-array bound may be optimistic. Refitting every vocabulary on a
 common 33M-token prefix (the smallest `T_target` in the grid) degrades the P2 margin from
 **57× to 37×**. It still clears; the full-array figure alone would have overstated headroom.
+
+## Round 2 — VERDICT: CHANGES REQUIRED (1 blocking, 1 advisory)
+
+| # | Sev | Finding | Resolution |
+|---|---|---|---|
+| 1 | BLOCKING | The 33M-prefix numbers (5.02e−05, 1.07e−04, 37×) appear nowhere in the JSON artifacts, so the claim is unsupported by the reviewable record | **Correct against the clone it reviewed, and already fixed in the tree when it landed.** The check had been folded into `scripts/p2_smoothing_sensitivity.py` and written to `worst_case_prefix` while round 2 was running. Verified both ways: the round-2 clone's JSON lacks the key, the current one carries it with all 20 per-vocabulary entries. **Sequencing error on the author's part** — the clone was taken before the fix — not a defect in the proposal. |
+| 2 | ADVISORY | The design-impact table reintroduced the "output head" overclaim that round 1 finding 6 had just corrected, calling `N_v = V·d` "the output head" and M1's terms "output-head parameters" | Both rows rewritten in proxy language. The M1 row now also states *why* the proxy is harmless there: both terms are the same proxy, so its bias cancels in the ratio. A sweep of both documents found one further instance ("output-head allocation law"), also fixed. |
+
+Finding 2 is the useful kind: a correction applied in the prose but not propagated to a
+table two sections away. Worth noting that the reviewer caught the author's own correction
+being applied inconsistently.
+
+**Lesson recorded for the process, not the science.** Reviewing a clone taken at commit *N*
+while continuing to commit to the working tree produces exactly this: a blocking finding
+that is simultaneously correct and obsolete. Subsequent rounds clone immediately before
+launch, and the round prompt states explicitly what changed since the previous clone.
+
+**Sandbox reliability.** Round 2's first launch hung indefinitely at "Reading additional
+input from stdin" with 39 bytes of output. Round 1 printed the same line and proceeded, so
+the message is not itself the fault. Relaunching with `< /dev/null` fixed it. Both
+observations are recorded because "it printed something plausible and then did nothing" is
+the same failure shape as the liveness-check and VRAM-spill incidents: the instrument
+returned a benign-looking signal instead of an error.
+
+## Author-initiated additions between rounds
+
+Neither was requested by the reviewer.
+
+1. **P4 at the smallest training budget.** The prefix robustness check had been applied to
+   P2 but not P4 — an inconsistency in the author's own analysis. Refitting the drop-EOS
+   comparison on the 33M prefix gives **9.4×** against 9.0× on the full arrays: marginally
+   *better*, not worse. The asymmetry is expected and is now stated: P2's sensitivity is
+   driven by how much text the unigram is fitted on, P4's by the document rate, which a
+   prefix does not change. The consequence matters for the decision — **P4's thin margin is
+   a property of the packing convention and will not improve with more data**, which is the
+   argument for gating it rather than waiting for a better measurement.
+2. **A stale line removed** from `scripts/p2_smoothing_sensitivity.py`, which still printed
+   the superseded claim that a spread `S` bounds the perturbation of cross-vocabulary `L_u`
+   differences by `S`.
