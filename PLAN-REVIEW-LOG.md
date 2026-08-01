@@ -1203,3 +1203,60 @@ Rounds 1-2 had 3 author rejections, all of which the reviewer subsequently endor
 defensible. The reviewer corrected the author twice on matters of fact (the arXiv:2501.16975
 attribution, and the anchor-architecture resolution); the author independently found 4 of
 round 4's 5 arithmetic errors before that critique arrived.
+
+---
+
+# Amendment review — P2/P4 resolution and the scope qualifier (2026-08-01)
+
+A separate review track from rounds 1–7. `PLAN.md` is untouched: these are proposed
+amendments in `results/p2p4_resolution.md` and `PROPOSED-RELATED-WORK.md`, submitted for
+adversarial review before adoption, because they fix the definition of the primary metric
+and touch the headline novelty claim.
+
+**Sandbox note.** `codex --sandbox read-only` fails on this host — the config sets
+`sandbox_mode = "danger-full-access"` and the read-only helper is broken, so the first
+launch died in 11 s with "blocked by the read-only filesystem policy." Rather than point a
+full-access agent at a tree containing an `approved-final` plan, both rounds ran in a
+throwaway `git clone` under the temp directory with `data/` absent. Read-only was enforced
+by isolation, not by trusting a flag.
+
+## What the author had already found before submitting
+
+Two self-corrections, made after the review prompt was written and before the reviewer
+returned, both of which had changed the answer by an order of magnitude:
+
+1. **Spread is not slope.** Converting a convention's cross-V spread into a monotone tilt
+   `S / range(lnV)` is not a worst case — a bounded-range perturbation can have arbitrarily
+   large derivative. Using the measured shift directly gave slopes up to **39× larger**.
+2. **The curvature floor is fitting-dependent.** A quadratic fitted globally over Tao's
+   grid is not a local model of the minimum; 21 of the fitted slices place their optimum
+   outside the measured grid. Across three fitting windows the floor fell from 0.04732 to
+   **0.00965**.
+
+Together these cut the reported margins from 6,699×/63× to **57×/9×**.
+
+## Round 1 — VERDICT: CHANGES REQUIRED (3 blocking, 4 advisory)
+
+All seven accepted; none rejected.
+
+| # | Sev | Finding | Resolution |
+|---|---|---|---|
+| 1 | BLOCKING | P4 gate keyed on a point estimate; with 3 pilot seeds a noisy `\|D̂_pilot\|` above threshold can arise from a true `D` inside the band | Gate now requires the **paired 95% interval** to lie wholly outside `[−B, +B]`. The matched-seed pilot already supports this by construction. |
+| 2 | BLOCKING | "P4 is settled for M2" overclaims — EOS removal changes the training stream and hence `CE_model`, which nothing measures | Pass condition weakened to metric-side only; the decision not to budget a no-EOS training arm is now recorded explicitly. |
+| 3 | BLOCKING | "unrecoverable from the code even in principle" overstated | Narrowed to what the evidence supports: the script cannot run on an ordinary JSON object and the probability file is absent, so the convention is not recoverable **from the release**. |
+| 4 | ADVISORY | "fitted on the full train array" ambiguous — arrays differ 33.9M–742M tokens by V | Reworded to each vocabulary's own consumed prefix. Prompted the 33M-prefix check below. |
+| 5 | ADVISORY | P2's headline should carry the curvature conditional | "not decision-relevant" → "not decision-relevant, conditional on the Stage B.7 below-range curvature check". |
+| 6 | ADVISORY | **Reviewer corrected the author on a matter of fact.** `N_v = V·d` is not "the output head only" — Tao's paper says vocabulary parameters would normally include both tables and adopts `V·d` as an analytical proxy justified by output-layer FLOP dominance | Rewritten as an output-weighted proxy, with the consequence stated: at small `d` the proxy under-counts actual vocabulary parameters by nearly 2×. Inherited deliberately, reported explicitly. |
+| 7 | ADVISORY | Qualifier wording | "with input and output vocabulary held equal" → **"under coupled input/output vocabulary size"**. |
+
+Finding 6 is the substantive one. The author's FLOP argument reached the right region for
+the wrong reason: it inferred from the FLOP formula that `V·d` *must be* the output head,
+when Tao state plainly that it is a simplification they chose. The corrected version is both
+more accurate and more useful, because a proxy can be poor exactly where this study
+operates.
+
+**Prompted by finding 4, an additional check the reviewer did not ask for.** The unigram in
+a confirmatory run is fitted on that run's consumed prefix, and smoothing matters more on
+less text — so the full-array bound may be optimistic. Refitting every vocabulary on a
+common 33M-token prefix (the smallest `T_target` in the grid) degrades the P2 margin from
+**57× to 37×**. It still clears; the full-array figure alone would have overstated headroom.

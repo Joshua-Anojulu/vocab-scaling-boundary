@@ -40,14 +40,21 @@ N_SPECIAL = 3
 
 ALPHAS = [1.0, 0.5, 0.1, 0.01, 1e-4, 1e-6]
 
+# Smoothing matters more when the unigram is fitted on less text, so the smallest training
+# budget in the grid is the worst case. That is the 2M scale at V=6912: 33.2M tokens. Every
+# vocabulary is refitted on a common prefix of this length as a robustness check, because
+# the full-array numbers alone overstate the headroom.
+WORST_CASE_PREFIX = 33_000_000
 
-def counts_of(path: Path, vocab_size: int) -> tuple[np.ndarray, int]:
-    """Exact token-id histogram over a whole array, read in bounded chunks."""
+
+def counts_of(path: Path, vocab_size: int, limit: int | None = None) -> tuple[np.ndarray, int]:
+    """Exact token-id histogram over an array (or its first `limit` ids), in bounded chunks."""
     arr = np.load(path, mmap_mode="r")
+    end = arr.shape[0] if limit is None else min(limit, arr.shape[0])
     total = np.zeros(vocab_size, dtype=np.int64)
     n = 0
-    for start in range(0, arr.shape[0], CHUNK):
-        block = np.asarray(arr[start : start + CHUNK], dtype=np.int64)
+    for start in range(0, end, CHUNK):
+        block = np.asarray(arr[start : min(start + CHUNK, end)], dtype=np.int64)
         total += np.bincount(block, minlength=vocab_size)
         n += block.shape[0]
     if total.sum() != n:
@@ -125,10 +132,36 @@ def main() -> None:
 
     m1_margin = math.log(1.5)
     print(f"\nM1 equivalence margin on theta = ln(N_v*/N_v_pred): +/-{m1_margin:.4f}")
-    print("A spread S in delta(V) perturbs L_u differences between vocabularies by at most S.")
+    print("Spread is NOT the decision-relevant quantity -- a bounded-range perturbation can")
+    print("have arbitrarily large slope, and it is slope against curvature that moves an")
+    print("argmin. See scripts/p2p4_decision_relevance.py for the conversion.")
+
+    # --- worst-case robustness: refit every vocabulary on the SMALLEST training budget ----
+    print(f"\n=== refit on a common {WORST_CASE_PREFIX:,}-token prefix (smallest T_target) ===")
+    worst = {}
+    for V in vocabs:
+        tr, _ = counts_of(TOKENS / f"v{V}_train.npy", V, limit=WORST_CASE_PREFIX)
+        ev, _ = counts_of(TOKENS / f"v{V}_selection_val.npy", V)
+        worst[V] = {f"add{a:g}": h_unigram(tr, ev, a) for a in (1.0, 1e-6)}
+    xw = np.log(np.array(vocabs, dtype=float))
+    dw = np.array([worst[V]["add1e-06"] - worst[V]["add1"] for V in vocabs])
+    slope_w = float(np.abs(np.diff(dw) / np.diff(xw)).max())
+    dfull = np.array([r["H"]["add1e-06"] - r["H"]["add1"] for r in rows])
+    slope_f = float(np.abs(np.diff(dfull) / np.diff(np.log(np.array([r["V"] for r in rows], dtype=float)))).max())
+    print(f"add1 vs add1e-6 max local slope: {slope_f:.3e} (full arrays) "
+          f"-> {slope_w:.3e} (worst-case prefix), {slope_w / slope_f:.2f}x worse")
 
     OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps({"rows": rows, "delta_summary": summary}, indent=2))
+    OUT.write_text(json.dumps({
+        "rows": rows,
+        "delta_summary": summary,
+        "worst_case_prefix": {
+            "n_tokens": WORST_CASE_PREFIX,
+            "H": {str(V): worst[V] for V in vocabs},
+            "max_slope_full": slope_f,
+            "max_slope_prefix": slope_w,
+        },
+    }, indent=2))
     print(f"\nwrote {OUT.relative_to(ROOT)}")
 
 
