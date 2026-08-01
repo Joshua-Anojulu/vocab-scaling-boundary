@@ -48,9 +48,9 @@ max_key = max(tokenid_probabilities.keys())
 lookup_probabilities = torch.empty(max_key + 1).to(fabric.device)
 ```
 
-Two defects make the estimator unrecoverable **from the released artifact**. This is a
-claim about what the release determines, not about what the authors knew — they plainly had
-a working file; it simply is not derivable from what was published:
+Two defects in the release, stated at exactly the strength the evidence supports — this is a
+claim about what the *release determines*, not about what the authors knew or ran; they
+plainly had a working file:
 
 1. `json.load` returns **string** keys for any standard JSON object. `max(...)` is then a
    lexicographic max over strings and `max_key + 1` raises `TypeError: can only concatenate
@@ -62,9 +62,11 @@ a working file; it simply is not derivable from what was published:
    memory** as its unigram probability. So the code has no representable zero-frequency
    convention at all: an unseen token would contribute an arbitrary value.
 
-The honest conclusion is that P2's zero-frequency question **cannot** be answered by
-matching their implementation. It has to be fixed here with rationale. The remaining
-question is whether the choice can change any conclusion.
+Precisely stated: the released script cannot run on an ordinary JSON object without
+patching string keys to integers, and the external probability file is absent, so **the
+exact smoothing and zero-frequency convention is not recoverable from the release.** It
+therefore has to be fixed here with rationale. The remaining question is whether the choice
+can change any conclusion.
 
 ---
 
@@ -75,9 +77,10 @@ any trained model. The entire sensitivity is therefore computable on the corpus 
 tokenized, with no GPU. Both M1 and M2 compare `L_u` **across** vocabularies, so a shift
 common to all V is harmless and only the **spread across V** can move a decision.
 
-`scripts/p2_smoothing_sensitivity.py`, over all 20 vocabularies, unigram fitted on the full
-`train` array and evaluated on `selection_val` (17,749 documents, identical text for every
-V):
+`scripts/p2_smoothing_sensitivity.py`, over all 20 vocabularies, unigram fitted on **each
+vocabulary's own tokenized train array — the prefix that configuration actually consumes,
+not a common train split** — and evaluated on `selection_val` (17,749 documents, identical
+text for every V):
 
 | convention | spread of shift across V (nats/token) |
 |---|---|
@@ -187,10 +190,13 @@ Rationale, in the order that carries the weight:
    and has no representable zero-frequency convention (§1).
 2. A convention is **required**, because zero-frequency eval tokens occur in 3 of 20
    vocabularies.
-3. The choice is **not decision-relevant**: every smoothing strength from add-1 to add-1e−6
-   perturbs cross-vocabulary `L_u` differences by ≤1.1e−5 nats, whose largest local slope
-   is at least 57× below what would move `θ` by the M1 margin — and that is under the most
-   pessimistic curvature recoverable from Tao's data, not a favourable one.
+3. The choice is **not decision-relevant, conditional on the Stage B.7 below-range
+   curvature check** (§4): every smoothing strength from add-1 to add-1e−6 perturbs
+   cross-vocabulary `L_u` differences by ≤1.1e−5 nats, whose largest local slope is at
+   least 57× below what would move `θ` by the M1 margin — 37× on the smallest training
+   budget — and that is under the most pessimistic curvature recoverable from Tao's data,
+   not a favourable one. The conditional is not decorative: the curvature that converts
+   nats into `θ` is measured above 33M and this study runs below it.
 
 This is already what `src/metrics.py` implements, so nothing changes in code; what changes
 is that it stops being an open item and becomes a dated, justified, quantified choice. The
@@ -222,10 +228,29 @@ Proposed: keep EOS-separated packing (it is the standard choice for packed pretr
 is implemented, and removing it would require retokenizing 5.1B tokens), and add an
 explicit gate to Stage B.7:
 
-> **Gate.** The power pilot reports `|D̂_pilot|`. If `|D̂_pilot| < 1.2e−02` nats — ten times
-> the measured P4 metric-side spread — the packing convention is capable of flipping the M2
-> sign test and must be resolved before any confirmatory run. If `|D̂_pilot| ≥ 1.2e−02`, P4
-> is settled for M2 as well and is reported as a limitation only.
+> **Gate.** Stage B.7 runs 3 seeds with the `1.1·C` configuration matched-seed inside the
+> same bootstrap block, so a **paired** interval for `D_pilot` is available by construction.
+> Let `B = 1.2e−02` nats, ten times the measured P4 metric-side spread.
+>
+> **Pass** only if the paired 95% interval for `D_pilot` lies **wholly outside**
+> `[−B, +B]`. Otherwise the packing convention is capable of flipping the M2 sign test and
+> **must be resolved before any confirmatory run**.
+>
+> A point estimate is explicitly *not* sufficient. With 3 seeds, `|D̂_pilot|` is noisy
+> enough that a value above `B` can arise from a true `D` inside the band, which would pass
+> a point-estimate gate while leaving the sign genuinely undetermined.
+
+**What passing this gate does and does not establish.** It bounds only the metric side.
+Because removing EOS would also change the training token stream and hence `CE_model`, and
+that effect is measured nowhere in this study, passing does **not** establish that P4 is
+irrelevant to M2. The correct statement on a pass is the weaker one:
+
+> Metric-side P4 is not capable of flipping the M2 sign test at the observed effect size.
+> EOS-separated packing remains a preregistered convention and a reported limitation, and
+> its training-side effect is unmeasured.
+
+Establishing more than that would require a paired no-EOS **training** arm, which is not
+budgeted. Declining to run it is a scope decision, recorded here rather than left implicit.
 
 This gate is preregistered *before* the pilot runs, so it cannot be a post-hoc reaction to
 its result.

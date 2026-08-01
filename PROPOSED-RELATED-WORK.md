@@ -16,9 +16,13 @@ Target: Stage F related work, plus one qualifier on the novelty claim.
 > Over-Tokenized **decouples** the input vocabulary from the output vocabulary and locates
 > its gain on the **input** side: an *n*-gram input embedding much larger than the output
 > head, with the output head left small. Tao et al.'s law is a statement about
-> `N_v = V·d`, which their released code defines as the **output head only**
-> (`lm_head`; `N_nv` excludes both embedding tables, verified against all six published
-> families). The present study holds `V_tok = V_head = V` by construction — one vocabulary
+> `N_v = V·d` — **one** `V × d` table, not `2·V·d`. Their paper notes that vocabulary
+> parameters would normally include both the embedding and the output layer, and adopts
+> `V·d` as an analytical proxy on the grounds that output-layer FLOPs dominate; their
+> released accounting is consistent with this, holding `N_nv` fixed as `V` varies across
+> all six published families. The quantity the law governs is therefore an
+> **output-weighted proxy for vocabulary allocation**, not the input-side capacity that
+> Over-Tokenized manipulates. The present study holds `V_tok = V_head = V` by construction — one vocabulary
 > serving both sides, untied weights, sizes divisible by the padding quantum so no rows go
 > unused. It therefore tests the **output-head allocation law under coupling**, and makes
 > no claim about the decoupled input-side regime Over-Tokenized studies.
@@ -29,24 +33,26 @@ Target: Stage F related work, plus one qualifier on the novelty claim.
 > Its headline "bigger is better" claim is an input-side finding, and the paper's own
 > output-side evidence points the other way.
 
-**Why this framing is defensible and not a dodge.** Three independent checks, in ascending
-order of strength:
+**Why this framing is defensible and not a dodge.** Three independent checks:
 
-1. *Code.* `lm_head` is a separate `nn.Linear` from `wte` with no weight assignment, so the
-   two tables are untied.
+1. *Their own stated convention.* The paper says vocabulary parameters would typically
+   include both embedding and output layer, and uses `V·d` for analytical simplicity
+   because output-layer FLOPs dominate. So the output weighting is theirs, not our reading.
 2. *Data.* `Non_vocab_parameters` is **invariant across all ten vocabulary sizes** at fixed
-   `embed_dim`, in every one of their six families — so `N_nv` provably excludes both
-   embedding tables, and `N_v = V·d` counts exactly one `V × d` table, not both.
-3. *FLOP accounting — the decisive one.* Their budget is `C = 6·(N_nv + V·d)·H·f(V)`, which
-   charges `V·d` the full `6·N·T` matmul cost. Only the **output projection** performs a
-   matmul against the vocabulary; the input embedding is a row lookup and contributes
-   essentially no FLOPs. A term charged at matmul rates can therefore only be the output
-   head. This does not depend on reading their code correctly.
+   `embed_dim`, in every one of their six families — so `N_nv` excludes both embedding
+   tables, and `N_v = V·d` counts exactly one `V × d` table, not both. Verified directly.
+3. *FLOP accounting.* Their budget `C = 6·(N_nv + V·d)·H·f(V)` charges `V·d` the full
+   matmul cost, and only the output projection performs a matmul against the vocabulary;
+   the input embedding is a row lookup. This is the same argument their footnote makes, and
+   it holds independently of any code reading.
 
-Note the consequence, which should be stated in the paper: their model carries `2·V·d`
-vocabulary parameters while `N_v = V·d` counts one table. This study inherits the same
-convention exactly, so the comparison is valid — but the convention must be reported,
-because "vocabulary parameters" in this literature does not mean all of them.
+**An earlier draft of this document over-claimed here**, saying their code "defines `N_v` as
+the output head only." It does not define it that way — `V·d` is a deliberate proxy whose
+justification is FLOP dominance. The distinction matters, because a proxy can be a poor one
+precisely where the study operates: at small `d` the input embedding is a larger share of
+parameters, so `V·d` under-counts actual vocabulary parameters by a factor approaching two.
+That is inherited deliberately — following their convention exactly is what makes the
+comparison valid — but it must be reported, not assumed harmless.
 
 ---
 
@@ -69,10 +75,13 @@ honest answer is that this study cannot say. That is a **scope qualifier on the 
 not a change to the test:
 
 > *the first controlled English BPE test of Tao et al.'s published vocabulary-parameter
-> prediction below 33M `N_nv`, **with input and output vocabulary held equal**, at their
-> own compute-optimal budgets and under their own metric.*
+> prediction below 33M `N_nv`, **under coupled input/output vocabulary size**, at their own
+> compute-optimal budgets and under their own metric.*
 
-Six added words. It narrows the claim, which makes it more defensible, and it pre-empts the
+Five added words. "Under coupled input/output vocabulary size" is preferred over the
+earlier "with input and output vocabulary held equal": it names the regime rather than
+describing an implementation detail, and it is the term a reader of Over-Tokenized will
+recognise. It narrows the claim, which makes it more defensible, and it pre-empts the
 obvious objection rather than waiting for a reviewer to raise it.
 
 **Process note.** The paragraph itself is additive Stage-F guidance and would not normally
@@ -159,8 +168,10 @@ does the work you want it to do.
 ## Recommended action
 
 1. Add the (a) paragraph to Stage F related work — additive, low risk.
-2. Add the six-word scope qualifier from (b) to the novelty claim — **via one Codex round**,
-   since it touches the headline sentence of an `approved-final` plan.
+2. Add the scope qualifier "under coupled input/output vocabulary size" from (b) to the
+   novelty claim. **Codex round completed 2026-08-01**: approved as accurate and necessary,
+   with the wording change from "with input and output vocabulary held equal" adopted, and
+   the over-claim about `N_v` being "the output head only" corrected.
 3. Hold (c) as write-up guidance, explicitly conditional on the sign of `θ`.
 4. Adopt the (d) ordering: question first, replication second.
 
