@@ -29,10 +29,24 @@ Target: Stage F related work, plus one qualifier on the novelty claim.
 > Its headline "bigger is better" claim is an input-side finding, and the paper's own
 > output-side evidence points the other way.
 
-**Why this framing is defensible and not a dodge:** the distinction is checkable in their
-released code, not asserted. `lm_head` is a separate `nn.Linear` from `wte` with no weight
-assignment, and `Non_vocab_parameters` is invariant across all ten vocabulary sizes at
-fixed `embed_dim` — so Tao's `N_v` provably indexes the output side.
+**Why this framing is defensible and not a dodge.** Three independent checks, in ascending
+order of strength:
+
+1. *Code.* `lm_head` is a separate `nn.Linear` from `wte` with no weight assignment, so the
+   two tables are untied.
+2. *Data.* `Non_vocab_parameters` is **invariant across all ten vocabulary sizes** at fixed
+   `embed_dim`, in every one of their six families — so `N_nv` provably excludes both
+   embedding tables, and `N_v = V·d` counts exactly one `V × d` table, not both.
+3. *FLOP accounting — the decisive one.* Their budget is `C = 6·(N_nv + V·d)·H·f(V)`, which
+   charges `V·d` the full `6·N·T` matmul cost. Only the **output projection** performs a
+   matmul against the vocabulary; the input embedding is a row lookup and contributes
+   essentially no FLOPs. A term charged at matmul rates can therefore only be the output
+   head. This does not depend on reading their code correctly.
+
+Note the consequence, which should be stated in the paper: their model carries `2·V·d`
+vocabulary parameters while `N_v = V·d` counts one table. This study inherits the same
+convention exactly, so the comparison is valid — but the convention must be reported,
+because "vocabulary parameters" in this literature does not mean all of them.
 
 ---
 

@@ -48,13 +48,16 @@ max_key = max(tokenid_probabilities.keys())
 lookup_probabilities = torch.empty(max_key + 1).to(fabric.device)
 ```
 
-Two defects make the estimator unrecoverable from the code even in principle:
+Two defects make the estimator unrecoverable **from the released artifact**. This is a
+claim about what the release determines, not about what the authors knew — they plainly had
+a working file; it simply is not derivable from what was published:
 
-1. `json.load` returns **string** keys. `max(...)` is therefore a lexicographic max over
-   strings and `max_key + 1` raises `TypeError: can only concatenate str (not "int") to
-   str`. Verified directly. **The released script cannot run as published**, so it is not
-   byte-for-byte the script that produced the results, and the probabilities file it
-   expects has no recoverable schema.
+1. `json.load` returns **string** keys for any standard JSON object. `max(...)` is then a
+   lexicographic max over strings and `max_key + 1` raises `TypeError: can only concatenate
+   str (not "int") to str`. Verified directly. So **the released script cannot run against a
+   normal JSON object**, and is therefore not byte-for-byte the script that produced the
+   results. Stated precisely: this does not prove no input exists that works — it shows the
+   released code does not pin down the file's schema, so the schema cannot be inferred.
 2. `torch.empty`, not `torch.zeros`. Any id absent from the dict keeps **uninitialised
    memory** as its unigram probability. So the code has no representable zero-frequency
    convention at all: an unseen token would contribute an arbitrary value.
@@ -138,6 +141,25 @@ Taking `a = 0.00965`, the slope needed to displace the argmin by the M1 margin
 So P2 clears the margin by at least 57× under the most pessimistic curvature available,
 while **P4 clears it by only 9×**. That gap is the reason the two are resolved differently
 below.
+
+### The bound depends on how much text the unigram is fitted on
+
+The table above fits each unigram on that vocabulary's whole `train` array. Those arrays
+differ substantially in size — 33.9M tokens at V=6912 up to 742M at V=6144 — because each
+vocabulary was tokenized to its own exact token budget, so this is *not* a common training
+set across V. It is, however, the right set: it is what the confirmatory runs consume.
+
+Smoothing matters more when there is less text to fit on, so the smallest budget in the
+study is the worst case. Refitting every vocabulary on a common **33M-token prefix** — the
+smallest `T_target` in the grid (2M scale, V=6912) — gives:
+
+```
+add-1 vs add-1e-6 : spread 5.02e-05, max local slope 1.07e-04  ->  37x margin
+                     (versus 1.10e-05 / 6.87e-05 -> 57x on the full arrays)
+```
+
+The margin degrades by about a third and P2 still clears it by 37×. This is recorded
+because the full-array number alone would have overstated the headroom.
 
 ### Zero-frequency events are real but negligible
 
