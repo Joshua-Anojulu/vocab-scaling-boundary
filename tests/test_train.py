@@ -61,23 +61,60 @@ def test_recipe_constants_match_the_reference() -> None:
 # --- token budget ------------------------------------------------------------------
 
 
-def test_step_count_covers_the_token_budget() -> None:
+def test_budget_is_never_exceeded_and_shortfall_is_sub_sequence() -> None:
+    """IsoFLOP is enforced on exact tokens, so the budget must never be rounded UP."""
     cfg = T.TrainConfig(target_tokens=10_000, micro_batch=2, block_size=64, grad_accum=3)
     assert cfg.tokens_per_step == 2 * 64 * 3
-    assert cfg.total_steps * cfg.tokens_per_step >= cfg.target_tokens
-    assert (cfg.total_steps - 1) * cfg.tokens_per_step < cfg.target_tokens
+    assert cfg.target_sequences == 10_000 // 64            # 156 sequences = 9,984 tokens
+    planned = cfg.target_sequences * cfg.block_size
+    assert planned <= cfg.target_tokens
+    assert cfg.target_tokens - planned < cfg.block_size    # shortfall under one sequence
 
 
-def test_run_consumes_the_expected_tokens() -> None:
+def test_run_consumes_exactly_the_planned_tokens() -> None:
     block, mb = 64, 2
-    cfg = T.TrainConfig(target_tokens=block * mb * 8, micro_batch=mb, block_size=block,
-                        device="cpu", log_every_s=1e9)
-    toks = np.random.randint(0, 512, size=cfg.total_steps * cfg.tokens_per_step + 64,
-                             dtype=np.uint16)
+    # Deliberately NOT a whole multiple of a step, so the final step must be trimmed.
+    cfg = T.TrainConfig(target_tokens=block * 17 + 30, micro_batch=mb, block_size=block,
+                        grad_accum=3, device="cpu", log_every_s=1e9)
+    toks = np.random.randint(0, 512, size=block * 40 + 1, dtype=np.uint16)
     res = T.train_run(tiny_model(block=block), T.TokenStream(toks, block), cfg)
-    assert res.consumed_tokens == cfg.total_steps * cfg.tokens_per_step
-    assert res.consumed_tokens >= cfg.target_tokens
-    assert res.steps == cfg.total_steps
+    assert res.consumed_tokens == cfg.target_sequences * block
+    assert res.consumed_tokens <= cfg.target_tokens
+    assert cfg.target_tokens - res.consumed_tokens < block
+
+
+def test_sequences_are_self_contained_so_reordering_invents_no_targets() -> None:
+    """Permuting order must never create a next-token pair absent from the corpus."""
+    block = 8
+    toks = np.arange(block * 6 + 1, dtype=np.uint16)
+    dev = torch.device("cpu")
+    plain = T.TokenStream(toks, block)
+    shuf = T.TokenStream(toks, block, order_seed=7)
+    assert not np.array_equal(plain.order, shuf.order)      # the order really did change
+    for stream in (plain, shuf):
+        for _ in range(3):
+            x, y = stream.next_batch(2, dev)
+            # Every (input, target) pair must be genuinely adjacent in the source array.
+            assert torch.equal(y[:, :-1], x[:, 1:])
+            for r in range(x.shape[0]):
+                s = int(x[r, 0])
+                assert torch.equal(x[r], torch.arange(s, s + block))
+                assert torch.equal(y[r], torch.arange(s + 1, s + block + 1))
+
+
+def test_permutation_is_nested_so_a_bigger_budget_extends_a_smaller_one() -> None:
+    """A 1.1C run must read its C run's sequences plus more, in the same order."""
+    block = 8
+    toks = np.arange(block * 20 + 1, dtype=np.uint16)
+    small = T.TokenStream(toks, block, order_seed=3)
+    big = T.TokenStream(toks, block, order_seed=3)
+    assert np.array_equal(big.order[: len(small.order)], small.order)
+    assert np.array_equal(small.order[:12], big.order[:12])
+
+
+def test_order_seed_none_reproduces_corpus_order() -> None:
+    stream = T.TokenStream(np.arange(8 * 5 + 1, dtype=np.uint16), 8)
+    assert np.array_equal(stream.order, np.arange(5))
 
 
 # --- the stream --------------------------------------------------------------------

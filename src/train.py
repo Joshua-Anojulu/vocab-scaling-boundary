@@ -77,9 +77,30 @@ class TrainConfig:
         return self.micro_batch * self.block_size * self.grad_accum
 
     @property
+    def sequences_per_step(self) -> int:
+        return self.micro_batch * self.grad_accum
+
+    @property
+    def target_sequences(self) -> int:
+        """Whole sequences that fit in the budget, never exceeding it.
+
+        IsoFLOP is enforced on exact token counts, so the budget must not be rounded UP.
+        One sequence (`block_size` tokens) is the finest granularity available, so the
+        convention is the largest whole number of sequences that does not exceed
+        `target_tokens`; the shortfall is under one sequence and is reported as
+        `consumed_tokens` rather than assumed away.
+
+        An earlier version ceiled the STEP count instead and never trimmed, despite a
+        docstring claiming it did, overshooting by up to `tokens_per_step - 1` tokens --
+        about 0.118% of budget in this design, which is a V-dependent perturbation of `C`
+        of the same order as the EOS effect that A4 treats as decision-relevant.
+        """
+        return max(1, self.target_tokens // self.block_size)
+
+    @property
     def total_steps(self) -> int:
-        """Steps needed to consume the token budget. Ceil, then the last step is trimmed."""
-        return max(1, math.ceil(self.target_tokens / self.tokens_per_step))
+        """Steps needed to consume the budget; the final step is trimmed to fit."""
+        return max(1, math.ceil(self.target_sequences / self.sequences_per_step))
 
     @property
     def warmup_steps(self) -> int:
@@ -102,35 +123,72 @@ class TrainResult:
 
 
 class TokenStream:
-    """Sequential, non-repeating view over a flat token array.
+    """Non-repeating view over a flat token array, in units of self-contained sequences.
 
-    Sequences are packed contiguously with no shuffling: the plan holds the ordered
-    source corpus fixed so that runs at different budgets see the same tokens in the same
-    order, differing only in how far they read.
+    **Sequences are self-contained.** Sequence `k` spans `tokens[k*B : k*B + B + 1]` -- `B`
+    inputs plus the ONE lookahead token that supplies the final target. This mirrors the
+    reference, which requests `effective_block_size = block_size + 1` for exactly this
+    reason. It matters because it is what makes reordering safe: a sequence carries its own
+    targets, so permuting sequence ORDER never manufactures a next-token pair that does not
+    occur in the corpus. Concatenating permuted blocks and shifting across the join would
+    invent one false target per block -- about 0.049% of targets at B=2048, the same order
+    as the EOS effects that amendment A4 treats as decision-relevant.
+
+    **What a seed varies.** With `order_seed=None` the order is the corpus order. With an
+    integer, sequence order is permuted by that seed while the sequence CONTENTS are
+    untouched. Seeds then vary initialisation and data order together, which is the
+    variance component the seed-level BCa bootstrap is supposed to be estimating.
+
+    **Nesting is preserved**, which is what lets budgets stay comparable. The permutation is
+    drawn over the WHOLE array once per (vocabulary, seed) and every budget reads a prefix
+    of it, so a `1.1*C` run reads its `C` run's sequences plus more, in the same order --
+    the preregistered "same tokens in the same order, differing only in how far they read",
+    now holding per seed rather than globally.
     """
 
-    def __init__(self, tokens: np.ndarray, block_size: int) -> None:
+    def __init__(
+        self, tokens: np.ndarray, block_size: int, order_seed: int | None = None
+    ) -> None:
         if tokens.ndim != 1:
             raise ValueError("tokens must be a flat array")
         self.tokens = tokens
         self.block = block_size
-        self.pos = 0
+        # -1 so the last sequence still has its lookahead token.
+        self.n_sequences = (len(tokens) - 1) // block_size
+        if self.n_sequences == 0:
+            raise ValueError(
+                f"array of {len(tokens)} tokens holds no complete sequence of {block_size}+1"
+            )
+        self.order_seed = order_seed
+        if order_seed is None:
+            self.order = np.arange(self.n_sequences, dtype=np.int64)
+        else:
+            self.order = np.random.default_rng(order_seed).permutation(self.n_sequences)
+        self.cursor = 0
 
     @property
     def available(self) -> int:
-        return len(self.tokens) - self.pos - 1        # -1 because targets are shifted
+        """Sequences not yet consumed."""
+        return self.n_sequences - self.cursor
 
     def next_batch(self, batch: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
-        need = batch * self.block + 1
-        if self.available < batch * self.block:
+        if self.available < batch:
             raise RuntimeError(
-                f"token stream exhausted: need {need}, have {self.available + 1} left. "
+                f"token stream exhausted: need {batch} sequences, have {self.available}. "
                 f"The corpus slice is too small for the requested budget."
             )
-        buf = self.tokens[self.pos : self.pos + need]
-        x = torch.from_numpy(buf[:-1].astype(np.int64)).view(batch, self.block)
-        y = torch.from_numpy(buf[1:].astype(np.int64)).view(batch, self.block)
-        self.pos += batch * self.block
+        idx = self.order[self.cursor : self.cursor + batch]
+        B = self.block
+        xs = np.empty((batch, B), dtype=np.int64)
+        ys = np.empty((batch, B), dtype=np.int64)
+        for i, k in enumerate(idx):
+            s = int(k) * B
+            seq = np.asarray(self.tokens[s : s + B + 1], dtype=np.int64)
+            xs[i] = seq[:-1]
+            ys[i] = seq[1:]
+        self.cursor += batch
+        x = torch.from_numpy(xs)
+        y = torch.from_numpy(ys)
         return x.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
 
@@ -151,6 +209,7 @@ def train_run(
     )
 
     total_steps, warmup = cfg.total_steps, cfg.warmup_steps
+    remaining_seq = cfg.target_sequences
     consumed = 0
     curve: list[tuple[int, float]] = []
     windows: list[float] = []
@@ -164,15 +223,25 @@ def train_run(
 
         opt.zero_grad(set_to_none=True)
         step_loss = 0.0
-        for _ in range(cfg.grad_accum):
-            x, y = stream.next_batch(cfg.micro_batch, dev)
+        # The final step is trimmed to whatever is left of the budget, so the number of
+        # micro-batches and their size are decided here rather than fixed. Gradients are
+        # scaled by the micro-batches ACTUALLY taken, not by cfg.grad_accum, or a short
+        # final step would silently carry less weight than a full one.
+        micro = []
+        while len(micro) < cfg.grad_accum and remaining_seq > 0:
+            micro.append(min(cfg.micro_batch, remaining_seq))
+            remaining_seq -= micro[-1]
+        if not micro:
+            break
+        for b in micro:
+            x, y = stream.next_batch(b, dev)
             if dev.type == "cuda":
                 with torch.autocast("cuda", dtype=torch.bfloat16):
                     loss = model.loss(x, y, chunk_size=cfg.chunk_size)
             else:
                 loss = model.loss(x, y, chunk_size=cfg.chunk_size)
-            (loss / cfg.grad_accum).backward()
-            step_loss += loss.item() / cfg.grad_accum
+            (loss / len(micro)).backward()
+            step_loss += loss.item() / len(micro)
             consumed += x.numel()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
