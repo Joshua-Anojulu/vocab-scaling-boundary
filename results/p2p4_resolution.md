@@ -90,25 +90,54 @@ Six orders of magnitude of smoothing strength agree to within 1.1e−5 nats.
 ### Converting nats into the decision's own units
 
 M1 is a test on `θ = ln(N_v*/N_v_pred)` with `N_v*` from `argmin_V L_u`, so a perturbation
-matters only through how far it moves an argmin — which depends on the curvature of `L_u`
-in `ln V`. `scripts/p2p4_decision_relevance.py` measures that curvature from Tao's own
-released points, rebuilding IsoFLOP slices exactly as their approach2 does (quadratic
-`interp1d` of `Lossu` against FLOPs, interpolation only, never extrapolation), then fitting
-a quadratic in `ln V`. Thirty slices across all six of their `N_nv` families:
+matters only through how far it moves an argmin. For `L_u` locally quadratic with curvature
+`a`, a perturbation `ε` displaces the argmin to where `a·(x − x*) + ε′(x) = 0`, so what
+matters is the **slope** `ε′`, against the curvature `a`.
 
-```
-d²L_u/d(lnV)²  :  min 0.04732   median 0.13613   max 0.33729
-```
+**Two corrections to an earlier version of this analysis**, both of which moved the answer
+by an order of magnitude and are recorded because the first version was wrong:
 
-Taking the **weakest** curvature observed, the tilt in `dL_u/d(lnV)` needed to displace the
-argmin by the M1 margin `ln 1.5 = 0.4055` is **0.019185 nats per unit `ln V`**. Treating
-each convention's spread as a monotone tilt over our grid's `ln V` range of 3.836:
+1. *Spread is not slope.* Converting a convention's cross-V spread `S` into a monotone tilt
+   `S / range(ln V)` is **not** a worst case — a perturbation with bounded range can have
+   arbitrarily large derivative. The measured shift is now used directly and its largest
+   slope between adjacent grid vocabularies taken. That is up to **39× larger** than the
+   tilt heuristic gave.
+2. *The curvature floor depends on how it is fitted.* A quadratic fitted globally over
+   Tao's grid [4096, 96256] is not a local model of the minimum. Curvature is now computed
+   under three windows (global, 7-point, 5-point about the minimum) and the smallest value
+   taken, which is the conservative direction — weaker curvature means a given slope moves
+   the argmin further.
 
-| convention | tilt | factor below the M1 margin |
-|---|---|---|
-| add-0.5 | 5.93e−07 | 32,376× |
-| add-1e−6 | 2.86e−06 | 6,699× |
-| **drop EOS** | 3.06e−04 | **63×** |
+`scripts/p2p4_decision_relevance.py` rebuilds IsoFLOP slices exactly as their approach2
+does (quadratic `interp1d` of `Lossu` against FLOPs, interpolation only, never
+extrapolation) across all six of their `N_nv` families:
+
+| window | n | min curvature | median | max |
+|---|---|---|---|---|
+| global | 30 | 0.04732 | 0.13613 | 0.33729 |
+| local-7 | 29 | 0.01583 | 0.14031 | 0.19355 |
+| local-5 | 28 | **0.00965** | 0.11381 | 0.29580 |
+
+Twenty-one slices fit a minimum outside the measured grid (one global slice returns
+`V* = 788`; some local ones return `V* = 3`), which shows the quadratic is not always a
+trustworthy model. Excluding those does **not** rescue the floor — the local-5 minimum of
+0.00965 has its `V*` inside the grid and survives the filter. It is used as-is.
+
+Taking `a = 0.00965`, the slope needed to displace the argmin by the M1 margin
+`ln 1.5 = 0.4055` is **0.003913 nats per unit `ln V`**:
+
+| convention | spread (nats) | max local slope | factor below the M1 margin |
+|---|---|---|---|
+| add-0.5 | 2.27e−06 | 2.28e−05 | 171× |
+| add-0.1 | 4.34e−06 | 4.37e−05 | 90× |
+| add-0.01 | 5.15e−06 | 5.19e−05 | 75× |
+| add-1e−4 | 7.50e−06 | 6.05e−05 | 65× |
+| add-1e−6 | 1.10e−05 | 6.87e−05 | **57×** |
+| **drop EOS** | 1.17e−03 | 4.48e−04 | **9×** |
+
+So P2 clears the margin by at least 57× under the most pessimistic curvature available,
+while **P4 clears it by only 9×**. That gap is the reason the two are resolved differently
+below.
 
 ### Zero-frequency events are real but negligible
 
@@ -137,8 +166,9 @@ Rationale, in the order that carries the weight:
 2. A convention is **required**, because zero-frequency eval tokens occur in 3 of 20
    vocabularies.
 3. The choice is **not decision-relevant**: every smoothing strength from add-1 to add-1e−6
-   perturbs cross-vocabulary `L_u` differences by ≤1.1e−5 nats, at least 6,699× below what
-   would move `θ` by the M1 margin.
+   perturbs cross-vocabulary `L_u` differences by ≤1.1e−5 nats, whose largest local slope
+   is at least 57× below what would move `θ` by the M1 margin — and that is under the most
+   pessimistic curvature recoverable from Tao's data, not a favourable one.
 
 This is already what `src/metrics.py` implements, so nothing changes in code; what changes
 is that it stops being an open item and becomes a dated, justified, quantified choice. The
@@ -151,10 +181,12 @@ loss — but it forbids any direct comparison of our `L_u` numbers against their
 
 ### P4 — KEEP the EOS separator, with a pilot-conditional gate on M2
 
-The metric-side effect is bounded above: 1.17e−03 nats of cross-V spread, 63× below the M1
-margin. Comfortable for M1.
+The metric-side effect is bounded above: 1.17e−03 nats of cross-V spread, whose largest
+local slope sits **9×** below the M1 margin. That is the whole margin, and it is thin —
+one order of magnitude, against a curvature floor that itself moved 5× when the fitting
+window changed. P4 is therefore **not** declared settled the way P2 is.
 
-**But that bound does not cover M2, and does not cover training.** Two gaps, stated
+**The bound also does not cover M2, and does not cover training.** Two further gaps, stated
 plainly rather than waved through:
 
 - **M2 has no equivalence margin.** It is a sign test on `D = L_u(V_run, 1.1C) − L_u(V*, C)`.
@@ -181,8 +213,16 @@ its result.
 ## 4. Residual risk
 
 The curvature bound is measured on Tao's families at `N_nv ≥ 33M`. This study runs at
-2M–16M, where curvature is unmeasured — that is, in part, what the study is for. If `L_u`
-proves dramatically flatter in `V` below 33M, the 63× margin on P4 shrinks proportionally.
-The pilot measures curvature in our regime directly and should be checked against the
-0.04732 floor used here. The P2 margin (≥6,699×) has enough headroom that no plausible
-flattening reaches it.
+2M–16M, where curvature is unmeasured — that is, in part, what the study is for. **The
+bound is therefore not fully non-circular**: it assumes `L_u` below 33M is not dramatically
+flatter in `V` than anything observed above it. If it is, the margins shrink in proportion.
+
+That risk falls almost entirely on P4. A 9× margin is erased by a 9× flattening, which is
+not obviously implausible. The P2 margin of 57× has enough headroom that no flattening
+consistent with the study being worth running would reach it.
+
+**Mitigation.** The pilot measures curvature in our own regime directly. Its measured
+`d²L_u/d(lnV)²` is to be recorded and compared against the 0.00965 floor used here. If the
+pilot's curvature is below 0.00965, this entire conversion is invalid in our regime and
+both P2 and P4 must be re-derived against the pilot's own value before any confirmatory
+run. That check is preregistered here, before the pilot runs.
