@@ -408,191 +408,101 @@ descriptive only.
 
 ---
 
-## A7 — the effective batch size (2026-08-02)
+## A7 — effective batch size and warmup fraction (2026-08-02)
 
-**Status: PROPOSED**, pending adversarial review. Not adopted; no run has used it yet.
+**Status: PROPOSED.** No pilot or confirmatory run has used it.
 
-### The gap
+*This entry was restated cleanly on 2026-08-02, after four review rounds had left it as an
+original claim plus four layers of correction notes. Nothing was adopted at any point, so no
+approved version is bound to; the round-by-round history is preserved in full in
+`PLAN-REVIEW-LOG.md` under the A7 track, including every claim withdrawn along the way.*
 
-`PLAN.md` specifies "the shared Tao training recipe" and "Tao's schedule" but **never fixes
-the number of sequences per optimizer step.** Neither does A1–A6. It was found while
-choosing a batch shape for the Stage B.7 runner, where it presented itself as a throughput
-question and is not one.
+### What the preregistration left unfixed
 
-The batch size is not free, because the released recipe PAIRS it with a learning rate. The
-reference sets `global_batch_size = 512` sequences and `learning_rate = 4e-4` together
-(`reference/tinyllama_pretrain.py:37,36`), and derives the micro-batch split from it:
-`gradient_accumulation_steps = batch_size // micro_batch_size` (`:125`). Choosing a
-different effective batch while keeping `4e-4` would be a different recipe wearing the same
-name.
+`PLAN.md` specifies "the shared Tao training recipe" and "Tao's schedule" and stops there. It
+never fixes **sequences per optimizer step**, and it never fixes the **warmup fraction**.
+Both were discovered while building the Stage B.7 runner, where the first presented itself as
+a throughput question and is not one.
 
-### The amendment
+These are **unpreregistered researcher choices**, made before any outcome was observed. A7 is
+a prospective clarification of omitted hyperparameters, not a restatement of something the
+plan already settled.
 
-**The effective batch is 512 sequences per optimizer step, matching the reference.**
-`micro_batch` is a memory-partitioning knob only, and `grad_accum` is derived as
-`512 // micro_batch`; a micro-batch that does not divide 512 is refused rather than allowed
-to land near it.
+### What A7 fixes
 
-### Why this rather than the alternative, decided on measurement
+**1. The effective batch is 512 sequences per optimizer step**, matching
+`reference/tinyllama_pretrain.py:37`. `micro_batch` is a memory-partitioning knob only and
+`grad_accum` is derived as `512 // micro_batch`, mirroring the reference, which derives
+`gradient_accumulation_steps = batch_size // micro_batch_size` (`:125`).
 
-The obvious objection is that at these budgets a 512-sequence batch yields few optimizer
-updates: **131–190** across the six pilot configurations. That was the author's initial
-concern, and it is answered by Tao's own released data rather than by argument.
+**2. Warmup is 10% of run length** (`WARMUP_FRACTION = 5480/54800`).
 
-At their smallest fitted scale (33M non-vocabulary parameters, 200 released runs) their runs
-span **57 to 1,144 optimizer steps, median 601** (nominal; see the artifact caveat below).
-This pilot's **131–190 updates** sit in the LOWER TAIL of that distribution — with only about 10–15% of their evaluations falling below
-this study's range, and both endpoints below their 25th-percentile value; 0.21–0.30× their
-median — above their minimum but not typical of their
-grid. Recomputed in `tests/test_pilot.py` against the committed
-`results/reference_step_stats.json`, so a future change that moves the study out of the low
-tail fails a test.
+### The evidence, and exactly how strong it is
 
-**"Inside their range" overstates it, and the precise position is this:** their range spans
-20×, so landing inside it is a weak test. Our step counts sit at the lower tail of their
-smallest-scale evaluations: **about 10% of them fall below this study's shortest run and
-about 15% below its longest**, and both endpoints sit below the 25th-percentile value of
-their grid.
+**For the batch: the released recipe pairs `global_batch_size = 512` with
+`learning_rate = 4e-4`.** Changing one while keeping the other departs from that pairing.
+This does **not** claim the two were tuned together — the reference gives no evidence of how
+`4e-4` was selected, and an earlier draft asserted tuning without support.
 
-That is expected rather than alarming, and the reason is the study's own premise. Our pilot
-budget is `C = 1.031e16` against their smallest-scale ladder of `1.272e16` to `5.940e17`:
-**0.81× their smallest budget.** This study exists to probe *below* the region they fitted,
-so running at fewer optimizer steps than most of their runs is the direct consequence of the
-question being asked, not a defect in the recipe. The claim A7 rests on is the narrow one —
-these step counts are not outside the regime the law was fitted in — and not the broader one
-that they are typical of it.
+**For warmup: the evidence is weak on both sides, and this is the honest statement of it.**
+The module defaults are `warmup_steps=2000, max_step=25000` (8%). The upstream experiment
+script `experiments/light_train/scripts/run.sh` passes `warmup_steps=5480, max_step=54800`
+(10%). **Neither is provably what produced the released data:** `exp_data.csv` predates that
+script in git history and the script loops over `vocab=4096` only. 8% is a default that may
+never have been passed to anything; 10% is the only ratio the project is on record as
+actually passing. **This study cannot claim to have matched Tao's warmup — only to have
+matched the one value they published a script for.**
 
-The alternative — a small effective batch of 16 sequences, which is what a
-throughput-first choice would have produced — gives ~6,000 optimizer steps, **10× Tao's
-median at the comparable scale**, at a learning rate the released recipe pairs with a batch
-32× larger. That is the larger departure from the recipe, not this. The initial framing of
-the decision had it exactly backwards.
+### Where this puts the study relative to Tao's own runs
 
-### What this amendment does NOT claim
+Their IsoFLOP data is **20 in-training evaluations per (vocabulary, scale)**, from
+`compute_eval_steps(max_steps, evals_per_interval=20)` — checkpoints of one run per
+configuration, not separate budget-specific runs. For the 33M family the evaluation positions
+are 57, 114, … 1,144 nominal steps (median 601); their released checkpoint filenames run
+`step-000060` to `step-001200` (median 630). Both conventions are recorded in
+`results/reference_step_stats.json`; the conclusion below holds under either.
 
-1. **Not** that 512 is optimal for these budgets. It is faithful, which is the requirement
-   here; the study tests Tao's law under Tao's recipe, and optimizing the recipe would
+This pilot runs **131–190 optimizer updates**. That is the **lower tail**: about 10–15% of
+their smallest-scale evaluations fall below this range, both endpoints sit below their
+25th-percentile value, and the range is 0.21–0.30× their median. It is **not** typical of
+their grid, and range inclusion is explicitly disclaimed as too weak a test — their range
+spans 20×.
+
+Being in the lower tail is expected rather than alarming: this pilot's `C = 1.031e16` against
+their smallest-scale ladder of `1.272e16`–`5.940e17` is **0.81× their smallest budget**, and
+probing below the fitted region is the study's premise.
+
+The alternative a throughput-first choice would have produced — an effective batch of 16
+sequences — gives ~6,000 updates, **10× their median**, at a learning rate the released
+recipe pairs with a batch 32× larger. That is the larger departure.
+
+### What A7 does not claim
+
+1. **Not** that 512 is optimal for these budgets. It is faithful; optimising the recipe would
    confound the test.
-2. **Not** that the resulting models are well converged in an absolute sense. They are
-   trained under the reference's CONSTANTS. They are not trained under its trajectory -- see the
-   quantified learning-rate-exposure limitation below, where the difference reaches 1.69x.
-   "Same regime" is therefore not a phrase this study may use unqualified.
-3. **Not** that micro-batch is inert. It changes throughput and peak memory, and it is
-   chosen by measurement (`scripts/pilot_batch_probe.py`,
-   `results/pilot_batch_probe.json`) — but it cannot change the effective batch, which is
-   what the enforcement above guarantees.
+2. **Not** that `4e-4` was tuned for a 512-sequence batch. Withdrawn.
+3. **Not** that 10% matches Tao's warmup. See above.
+4. **Not** that the resulting models are well converged in an absolute sense.
+5. **Not** that they are trained "in the same regime as the reference." They are trained
+   under the reference's **constants**, not its **trajectory** — see the limitation below.
 
-### Reporting obligation
+### Enforcement
 
-The paper must state the effective batch, the derived micro-batch split, and the optimizer
-step counts alongside Tao's at the comparable scale. A reviewer's first question about a
-study run at 1/130th of the reference's token budget will be whether the models were trained
-comparably; the step-count comparison is the answer and belongs in the text rather than in a
-repository.
+* `grad_accum_for` refuses a micro-batch that does not divide 512, so the effective batch is
+  exactly the recipe's rather than near it.
+* `run_cell` validates `micro_batch × grad_accum == 512`; an off-recipe batch requires an
+  explicit `allow_off_recipe_batch=True`, which no study run sets.
+* `tests/test_pilot.py` recomputes the step-count position against
+  `results/reference_step_stats.json`, so the figures above cannot drift from the data.
+
+### Reporting obligations
+
+The paper must state the effective batch, the derived micro-batch split, the warmup fraction
+**and its unresolved provenance**, and the optimizer-step counts beside Tao's at the
+comparable scale. A reviewer's first question about a study run at a fraction of the
+reference's token budget will be whether the models were trained comparably.
 
 ---
-
-### A7 — correction and expansion, before adoption (2026-08-02)
-
-Round 1 of review returned five blocking findings. Two changed the amendment's substance and
-one changed a training constant. *(State as of round 1: A7 proposed, no run had been made.
-The corrected warmup check recorded further down HAS since been run; A7 itself remains
-proposed and no pilot or confirmatory run has used it.)*
-
-**The LR-coupling claim is withdrawn.** A7 argued the batch is not free because
-`learning_rate = 4e-4` is "tuned to" a 512-sequence batch. The reference pairs the two but
-gives **no evidence how `4e-4` was selected**, and the reviewer was right that this was
-asserted rather than shown. The defensible claim is narrower and sufficient: **fidelity to
-the released recipe.** The two values were used together in the runs the law was fitted on,
-so changing one while keeping the other departs from that pairing — whether or not the
-pairing was arrived at by tuning.
-
-This is the fifth time in this project that a mechanism was asserted ahead of the evidence
-for it. The others: the predicted fertility flattening, the tilt-is-worst-case argument, the
-document-rate mechanism, and the transcribed `C`. The numbers have held up; the explanations
-offered for them have not.
-
-**Warmup was 8% and should be 10%, and this is not a rounding matter.** `WARMUP_FRACTION` was
-derived from `tinyllama.py`'s module defaults (`warmup_steps=2000, max_step=25000`). The
-upstream experiment script `experiments/light_train/scripts/run.sh` passes
-`warmup_steps=5480, max_step=54800` — exactly **10%**. Verified against the upstream
-repository directly, not inferred from the vendored copy.
-
-> ⚠️ This paragraph originally said run.sh "actually produced the released IsoFLOP data".
-> **That is not established and is withdrawn** — see the round-2 corrections below. The defaults were never the experiment. `src/train.py` now uses `5480/54800`.
-
-**A discovery that outgrew this amendment: Tao's IsoFLOP points are not separate runs.**
-`compute_eval_steps(max_steps, evals_per_interval=20)` produces 20 linearly spaced in-training
-evaluations, and `reference/exp_data.csv` contains **exactly 20 rows per (vocabulary, scale)**
-at steps `57, 114, 172, … 1144` for the 33M family. Their IsoFLOP curve across compute is
-therefore built from **checkpoints of a single run per configuration**, not from
-budget-specific runs.
-
-`PLAN.md` prescribes "separate budget-specific runs", which is a different procedure. The
-consequence is recorded here rather than acted on, because it bears on an already-adopted
-amendment and is not this amendment's to settle.
-
-**It does, however, refute A5's stated reasoning.** A5 declined checkpoint reuse while
-accepting that "under a constant rate, a checkpoint at step *k* does have the learning-rate
-history of a run trained to step *k*." That equivalence **is false whenever warmup scales with
-run length**, which it does: a dedicated run to step *k* warms up over `0.1k` steps, whereas a
-checkpoint at step *k* of a 1144-step run warmed up over 114. A5's conclusion survives on its
-*second*, independent ground — that reuse induces a dependence between the `C` and `1.1·C`
-observations which the M2 bootstrap treats as paired-but-distinct — but its first ground is
-withdrawn. A5's text is left intact and annotated here rather than rewritten, following this
-project's convention for superseded reasoning.
-
-**Consequence to carry into reporting, not to fix silently.** This study trains a dedicated
-run per budget with warmup scaled to that run; Tao read intermediate checkpoints of a longer
-run whose warmup was scaled to the longer run. At the low-compute end the learning-rate
-trajectories therefore differ, and that is a procedural departure from the reference which
-must be stated in the paper rather than left for a reader to discover in the code.
-
-**Remaining round-1 corrections, applied.**
-
-*What A7 is.* It is a **prospective clarification of a hyperparameter the preregistration
-omitted**, not a restatement of something `PLAN.md` already fixed. `PLAN.md` says "the shared
-Tao training recipe" and stops there. The effective batch and the warmup fraction are
-therefore **unpreregistered researcher choices**, made before any outcome was observed and
-recorded here for that reason. Nothing about the framing should suggest the plan settled
-them; it did not, and the honest description is that this study is fixing them now, in
-public, in advance.
-
-*Step counts, corrected twice.* The pilot figure "130–189" was **floored whole batches, not
-optimizer updates**. With the trimmed final step the actual update counts are **131–190**;
-`tests/test_pilot.py` now computes them through `TrainConfig.total_steps` so the amendment
-cannot drift from the code.
-
-*Nominal versus artifact.* The reference figures "57 to 1,144, median 601" are **nominal**,
-derived here as `num_characters · f(V) / (512 · 2048)`. The released checkpoint filenames for
-the 33M family run `step-000060` to `step-001200`, median 630 — so the derivation and Tao's
-own emitted artifacts do not agree exactly. Both are recorded in
-`results/reference_step_stats.json`. The comparison uses the nominal values because they are
-what this repository can recompute from released data; the artifact values are recorded so the
-discrepancy is visible rather than buried. **The conclusion is unchanged under either**: the
-pilot sits in the lower tail on both.
-
-*Position, stated precisely.* The claim is **lower-tail but above the minimum** — roughly the
-lower tail — about 10–15% of their evaluations fall below this study's range, both endpoints
-sit below their 25th-percentile value, and the range is 0.21–0.30× the median. It is **not**
-that the pilot is typical of
-their grid, and range-inclusion is explicitly disclaimed as too weak to carry the decision:
-their range spans 20×.
-
-*Provenance of the step statistics.* `reference/exp_data.csv` is gitignored as regenerable,
-which meant the test guarding these numbers **silently skipped in any clone lacking it**,
-including the reviewer's. A test that guards a claim and does not run reads as coverage it
-does not provide. The statistics now live in a committed artifact,
-`results/reference_step_stats.json`, carrying the CSV's sha256 so the summary can be checked
-against the source wherever the source is present.
-
-*Micro-batch, measured.* `results/pilot_batch_probe.json` was regenerated against derived
-`grad_accum`; the earlier file compared effective batches of 16 and 64, which this amendment
-rejects and the pilot will never run at. Across micro-batches 2/4/8/16 at the matching
-`grad_accum` of 256/128/64/32, **micro_batch=4 is fastest and second-cheapest in memory**:
-9.48 h projected for 18 runs at 1.89 GB peak, against 10.26/10.56/10.96 h for the others.
-Measuring at the real `grad_accum` changed the projection materially — the stale file
-projected 13.04 h — because the optimizer step amortises very differently at `ga=128`.
 
 ### Decision: separate budget-specific runs are retained (2026-08-02)
 
@@ -600,111 +510,61 @@ projected 13.04 h — because the optimizer step amortises very differently at `
 intermediate checkpoints of one run per configuration rather than budget-specific runs.
 
 **`PLAN.md` as written stands: one dedicated run per budget.** The alternative — reproducing
-their procedure by training a longer run and reading checkpoints — would be closer to what
-they did and would also be cheaper, and it is declined anyway, for three reasons:
+their procedure by training a longer run and reading checkpoints — is closer to what they did
+and would also be cheaper. It is declined for two reasons:
 
 1. `PLAN.md` prescribes separate runs. Changing a preregistered *procedure* partway through,
-   on the basis of a discovery made while building the runner, is the precise freedom that
-   preregistration exists to remove. The discovery is real and is recorded; acting on it is
-   a different thing from recording it.
-2. A5's second ground is **weaker than first stated and is demoted, not relied upon.** It
-   held that reuse induces a dependence between the `C` and `1.1·C` observations which the
-   M2 bootstrap treats as paired-but-distinct. Review pointed out that a seed-level paired
-   bootstrap resampling the complete seed vector can preserve within-seed covariance, so
-   reuse changes the data-generating procedure without automatically invalidating the
-   bootstrap — and if it were a problem, it would likely be a fixable one. It is recorded as
-   a consideration, not as a proof, and the decision does not rest on it.
-3. The cheaper option being also the more faithful one is exactly the configuration in which
+   on a discovery made while building the runner, is the precise freedom preregistration
+   exists to remove. Recording the discovery and acting on it are different things.
+2. The cheaper option being also the more faithful one is exactly the configuration in which
    a mid-study procedure change is least trustworthy, not most.
 
-**The departure is therefore real and is carried into reporting rather than resolved, and it
-is larger than "the histories differ" suggests.** This study trains each budget with warmup
-scaled to that run's length; Tao read checkpoints of a longer run whose warmup was scaled to
-the longer run. Quantified as cumulative base-learning-rate exposure — the sum of the LR
-multiplier over all updates, which is what a linear warmup actually changes:
+**A5's grounds, corrected.** A5 declined checkpoint reuse on two stated grounds. Its
+learning-rate argument is **withdrawn** — a checkpoint at step *k* does not have the
+learning-rate history of a dedicated *k*-step run once warmup scales with run length. Its
+dependence argument is **demoted**: a seed-level paired bootstrap can preserve within-seed
+covariance, so reuse changes the data-generating procedure without automatically invalidating
+the bootstrap. **A5's conclusion now rests on reason 1 above alone.**
+
+**The departure is carried into reporting rather than resolved, and it is larger than "the
+histories differ" suggests.** Cumulative base-learning-rate exposure — the sum of the LR
+multiplier over all updates, which is what a linear warmup changes:
 
 | updates | this study (warmup 10% of its own run) | checkpoint of a 1144-step run (warmup 114) | ratio |
 |---|---|---|---|
 | 131 | 124.0 | 73.5 | **1.69×** |
 | 190 | 180.0 | 132.5 | **1.36×** |
 
-So at the pilot's shortest configuration a model here receives **about 69% more cumulative
-learning rate** than the reference procedure would have delivered at the same token budget.
-That is not a rounding difference, and it means the phrase "the same regime as the reference"
-must not be used without this qualification. The models are trained under the reference's
-*constants*; they are not trained under the reference's *trajectory*.
-This must appear in the paper's methods as a stated difference from the reference, not as a
-detail left in the repository. It is a limitation of the comparison, and pretending the
+At the pilot's shortest configuration a model here receives **about 69% more cumulative
+learning rate** than the reference procedure would deliver at the same token budget. This
+belongs in the paper's methods as a stated difference from the reference. Pretending the
 procedures match would be the worse error.
 
-**Round-2 corrections, applied.**
+---
 
-*Provenance of the 10% warmup, overclaimed and now stated honestly.* An earlier version said
-`run.sh` "actually produced the released IsoFLOP data." **The repository does not show that:**
-`exp_data.csv` predates the script in git history and the script loops over `vocab=4096`
-only. So neither candidate is proven to be what generated the released data — 8% is a module
-default that may never have been passed to anything, and 10% is the only warmup ratio the
-project is on record as actually passing. **10% is chosen as the better-evidenced of two weak
-options, and this study cannot claim to have matched Tao's warmup — only to have matched the
-one value they published a script for.** That is the sixth time in this project a claim ran
-ahead of its evidence.
+### Warmup stability: a two-cell pre-flight check (2026-08-02)
 
-*Withdrawn LR language, purged from the code as well as the prose.* Round 1 withdrew the
-"tuned to" claim and it was corrected in `AMENDMENTS.md` only, while `src/train.py`,
-`src/pilot.py`, `scripts/pilot_batch_probe.py` and `tests/test_pilot.py` kept asserting it.
-The same failure as the stale docstring one track earlier: the argument was fixed in one
-place and left standing in four. All now say the released recipe *pairs* the two.
+10% of a 131–190 step run is **13–19 warmup steps**, against Tao's ~114. Warmup exists to
+stop Adam taking an enormous early step while its second-moment estimate is poor, so 13 is
+not obviously enough. `scripts/warmup_stability_check.py` →
+`results/warmup_stability.json`:
 
-*`lr_at`'s docstring corrected.* It still said an intermediate checkpoint has "exactly the
-learning-rate history of a run trained to that step." That is false under 10% warmup scaling
-with separate budget-specific runs, and is the same claim A5 was annotated for.
-
-*Stale figures fixed in the PRIMARY text, not only in a later note.* `130–189` and "inside
-that range" survived in A7's main body and in `src/pilot.py`'s user-visible docstring after
-being corrected further down. A reader hits the wrong number first; appending a correction is
-not correcting.
-
-*A5's second ground, demoted.* See the decision record below — a seed-level paired bootstrap
-can preserve within-seed covariance, so checkpoint reuse changes the data-generating
-procedure without automatically invalidating the bootstrap. It is recorded as a
-consideration, not a proof, and the retain-separate-runs decision does not rest on it.
-
-**Warmup stability — the first check was invalid and has been withdrawn (2026-08-02).**
-
-Round 2 asked whether 10% of a 131–190 step run — **13–19 warmup steps**, against Tao's ~114
-— creates a problem of its own. The question is empirical and `scripts/warmup_stability_check.py`
-was written to answer it.
-
-**The first version did not test what its output was cited for.** It set
-`warmup_fraction = real_warmup / real_total`, but `warmup_steps` is
-`round(total_steps × warmup_fraction)` and `total_steps` there is the probe's 30 — not the
-real 131–190. The actual warmup exercised was **3 steps**, while the amendment cited the
-result as evidence about 13–19. That citation is withdrawn: it named `runs/diagnostics/`, which
-`.gitignore` excludes, so the table cited evidence no reader could open — the same failure as
-the test that silently skipped without `exp_data.csv`, two rounds after that one was fixed.
-
-Both are corrected: the probe now takes the fraction against its own step count and
-**asserts** `cfg.warmup_steps == real_warmup` before training, the pass criterion requires
-loss *sustained* below chance rather than a transient dip, and output is committed to
-`results/warmup_stability.json`. The numeric claim is withheld until that corrected run
-completes; **no stability claim is made here on the strength of the invalid check.**
-
-**The corrected check, and its result.** Re-run with the real warmup lengths verified by
-assertion, `results/warmup_stability.json`:
-
-| V | real run | real warmup | chance `ln V` | at warmup end | last (30 steps) | sustained below chance | spike |
-|---|---|---|---|---|---|---|---|
-| 768 | 189 | 19 | 6.644 | 5.737 | **5.137** | yes | no |
-| 12672 | 131 | 13 | 9.447 | 8.623 | **7.514** | yes | no |
+| V | real run | real warmup | chance `ln V` | at warmup end | last (30 steps) |
+|---|---|---|---|---|---|
+| 768 | 189 | 19 | 6.644 | 5.737 | **5.137** |
+| 12672 | 131 | 13 | 9.447 | 8.623 | **7.514** |
 
 No NaN, loss already below chance by the end of warmup, and every post-warmup point below
 chance at both extremes. **This two-cell pre-flight check showed no early instability under a
-13-19 step warmup.** That is deliberately narrower than "does not destabilise training": two
-vocabularies, thirty steps, one seed cannot support the general claim, and an earlier draft
-of this line made it anyway.
+13–19 step warmup.**
 
-**Scope, stated because the check is narrow.** Thirty optimizer steps: this establishes
-early-trajectory stability through warmup and a little past it. It says nothing about whether
-the full 131-190 step runs converge well, and nothing about `L_u`. It is a pre-flight check
-against wasting an 18-run pilot, not evidence about the study's results. It produces no
+That wording is deliberately narrow. Two vocabularies, thirty steps and one seed cannot
+support "a 13–19 step warmup does not destabilise training", which an earlier draft claimed
+anyway. The check says nothing about whether the full 131–190 step runs converge well, and
+nothing about `L_u`. It is a pre-flight check against wasting an 18-run pilot; it produces no
 metric that enters inference.
+
+The first version of this check was **invalid** — it exercised a 3-step warmup while being
+cited as evidence about 13–19 — and its numbers were withdrawn rather than reinterpreted. The
+script now asserts `cfg.warmup_steps == real_warmup` before training, and
+`tests/test_claims_audit.py` binds every figure in the table above to the artifact.
