@@ -2,7 +2,12 @@
   "seeds": [
     0,
     1,
-    2
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
   ],
   "curvature_floor": 0.00965,
   "m1_margin_ln": 0.4054651081081644,
@@ -12,75 +17,109 @@
       "target_tokens": 197280278,
       "sequences": 96328,
       "h_prefix": 5.881677099375318,
-      "h_permuted_mean": 5.8817331683295455,
+      "h_permuted_mean": 5.881743649847506,
       "h_permuted_seeds": [
         5.881726101623317,
         5.881721769145508,
-        5.881751634219811
+        5.881751634219811,
+        5.881743656885798,
+        5.881720170253973,
+        5.881717394206522,
+        5.88182326512286,
+        5.881745207322257
       ],
-      "bias_nats": 5.6068954227939116e-05,
-      "seed_sd_nats": 1.6137980619424246e-05
+      "bias_nats": 6.6550472188176e-05,
+      "seed_sd_nats": 3.470719014856508e-05
     },
     {
       "V": 1536,
       "target_tokens": 191865874,
       "sequences": 93684,
       "h_prefix": 6.442494529361282,
-      "h_permuted_mean": 6.442502610091136,
+      "h_permuted_mean": 6.442488703034021,
       "h_permuted_seeds": [
         6.442456527048702,
         6.442542826771948,
-        6.442508476452759
+        6.442508476452759,
+        6.442469559853698,
+        6.4424888815527535,
+        6.442484923624418,
+        6.4424800695544455,
+        6.442478359413446
       ],
-      "bias_nats": 8.080729854142987e-06,
-      "seed_sd_nats": 4.344791372541003e-05
+      "bias_nats": -5.8263272606495775e-06,
+      "seed_sd_nats": 2.650597167752126e-05
     },
     {
       "V": 3200,
       "target_tokens": 181097000,
       "sequences": 88426,
       "h_prefix": 6.917612688029687,
-      "h_permuted_mean": 6.9174958980907375,
+      "h_permuted_mean": 6.917514115057895,
       "h_permuted_seeds": [
         6.917534448091093,
         6.917491420098845,
-        6.917461826082273
+        6.917461826082273,
+        6.917579690009809,
+        6.917500350279513,
+        6.9176560937603515,
+        6.917421389995473,
+        6.917467702145805
       ],
-      "bias_nats": -0.00011678993894914669,
-      "seed_sd_nats": 3.6517507442295976e-05
+      "bias_nats": -9.857297179127755e-05,
+      "seed_sd_nats": 7.47015216716213e-05
     },
     {
       "V": 6272,
       "target_tokens": 164093730,
       "sequences": 80123,
       "h_prefix": 7.2949225717398996,
-      "h_permuted_mean": 7.29489475450156,
+      "h_permuted_mean": 7.294889927069741,
       "h_permuted_seeds": [
         7.294876822089583,
         7.294877589942743,
-        7.2949298514723555
+        7.2949298514723555,
+        7.294882079869156,
+        7.294886425180303,
+        7.2948689351724205,
+        7.2949187561894,
+        7.2948789566419725
       ],
-      "bias_nats": -2.7817238339444827e-05,
-      "seed_sd_nats": 3.0397292952620984e-05
+      "bias_nats": -3.264467015817729e-05,
+      "seed_sd_nats": 2.1986596881868668e-05
     },
     {
       "V": 12672,
       "target_tokens": 137247444,
       "sequences": 67015,
       "h_prefix": 7.604549241427525,
-      "h_permuted_mean": 7.6045434098523375,
+      "h_permuted_mean": 7.60452391101833,
       "h_permuted_seeds": [
         7.604581061391806,
         7.604516824240306,
-        7.604532343924901
+        7.604532343924901,
+        7.604507602685135,
+        7.604503932102933,
+        7.604517635991389,
+        7.604514805653631,
+        7.604517082156542
       ],
-      "bias_nats": -5.8315751871873545e-06,
-      "seed_sd_nats": 3.351781572151746e-05
+      "bias_nats": -2.5330409195056802e-05,
+      "seed_sd_nats": 2.4557621159870412e-05
     }
   ],
-  "worst_abs_bias_nats": 0.00011678993894914669,
-  "worst_seed_sd_nats": 4.344791372541003e-05,
-  "worst_local_slope_nats_per_lnv": 0.00017013067175422592,
-  "implied_lnv_displacement": 0.017630121425308384,
-  "margin_factor": 22.998429694653794
+  "n_seeds": 8,
+  "sd_relative_standard_error": 0.2672612419124244,
+  "worst_abs_bias_nats": 9.857297179127755e-05,
+  "worst_seed_sd_nats": 7.47015216716213e-05,
+  "pooled_seed_sd_nats": 4.141004738493166e-05,
+  "worst_seed_sd_note": "A max over per-vocabulary SD estimates is biased UPWARD by selection. That is conservative for the conclusion drawn from it -- it overstates the variance component whose existence argues FOR fitting the baseline on the consumed set -- so no correction is applied. pooled_seed_sd_nats is the unselected summary.",
+  "worst_local_slope_nats_per_lnv": 0.00012636313305731608,
+  "implied_lnv_displacement": 0.01309462518728664,
+  "margin_factor": 30.96423932025362,
+  "margin_factor_ci95": [
+    19.87800669320218,
+    44.86151506977674
+  ],
+  "margin_factor_note": "The point estimate is NOT stable at small seed counts: it read 23.0x at three seeds and 31.0x at eight, because the slope is a finite difference of seed-averaged biases whose noise is seed_sd/sqrt(n) and is not small next to the slope itself. Quote the interval, or quote the conclusion that the displacement is an order of magnitude inside the margin -- never the point estimate's last digit."
 }

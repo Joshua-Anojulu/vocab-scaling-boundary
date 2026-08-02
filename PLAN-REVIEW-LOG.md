@@ -1429,14 +1429,32 @@ The seed-order fix would have introduced a defect into `L_u` while repairing one
 variance estimate.
 
 Now measured rather than argued (`scripts/unigram_order_sensitivity.py`, real tokenized pilot
-data, three seeds, evaluation targets held fixed so only the fit set moves): worst bias
-**1.168e−04 nats**, worst between-seed SD **4.345e−05 nats**, worst local slope
-**1.701e−04 nats per ln V**, implied argmin displacement **1.763e−02 in ln V** — the M1
-margin is **23.0×** larger. So the bias alone would probably not have flipped M1, but 23× is
-the second-tightest margin in this study after P4's 8.7×. The margin is not the reason the
-fix is required: a variance component set to zero by construction is a different estimand,
-not a small error, which is the same objection this amendment makes about
-initialisation-only seeds.
+data, eight seeds, evaluation targets held fixed so only the fit set moves): worst bias
+**9.86e−05 nats**, worst between-seed SD **7.47e−05 nats**, worst local slope
+**1.26e−04 nats per ln V**, implied argmin displacement **1.31e−02 in ln V** — the M1 margin
+is **31× larger, 95% CI 19.9×–44.9×**. The defensible reading is that the displacement sits
+at least about twenty-fold inside the margin; it is still the second-tightest margin in this
+study after P4's 8.7×. The margin is not the reason the fix is required: a variance
+component set to zero by construction is a different estimand, not a small error, which is
+the same objection this amendment makes about initialisation-only seeds.
+
+### ⚠️ A second author precision error, same round, same family
+
+The measurement was first run at **three** seeds and reported **23.0×** as a point estimate.
+Re-running at eight seeds moved it to **31×** — a 35% shift — which prompted a bootstrap
+over the seed vector and an interval of **19.9×–44.9×**, spanning more than a factor of two.
+
+The point estimate was never stable enough to quote. The slope is a finite difference of
+seed-*averaged* biases, so its noise is `seed_sd/√n` and is not small relative to the slope.
+This is the same failure family as the `+0.0129%` transcription error one level up: there,
+a constant was transcribed rather than derived; here, an unstable estimator was reported as
+a point value. The response is the same in kind — the artifact now carries an interval and
+an explicit note that the point estimate must not be quoted.
+
+Raising the seed count after seeing the first result is legitimate here and would not be in
+the study itself: this measures a property of the implementation, not a preregistered
+outcome, and no study inference depends on it. Recorded so the distinction is explicit
+rather than assumed.
 
 **The gradient weighting was wrong on trimmed steps.** `loss / len(micro)` is correct only
 for equal-size micro-batches. On a trimmed final step of `[4, 4, 4, 1]` the one-sequence

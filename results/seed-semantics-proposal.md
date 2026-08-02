@@ -188,25 +188,36 @@ sequences' targets. `TokenStream.consumed_order` supplies it, `evaluate_run` acc
 omitting it for a permuted run is the caller error the guards are there to catch.
 
 **Measured, not assumed** — `scripts/unigram_order_sensitivity.py`, on real tokenized pilot
-data, three seeds, evaluation targets held identical so only the fit set moves:
+data, eight seeds, evaluation targets held identical so only the fit set moves:
 
 | quantity | worst over the V grid |
 |---|---|
-| bias in `H_unigram`, prefix vs correct | **1.168e−04 nats** (V=3200) |
-| between-seed SD of `H_unigram` | **4.345e−05 nats** |
-| local slope in `ln V` | **1.701e−04 nats per ln V** |
-| implied argmin displacement | **1.763e−02 in ln V** |
-| M1 margin (`ln 1.5`) vs that displacement | **23.0×** |
+| bias in `H_unigram`, prefix vs correct | **9.86e−05 nats** (V=3200) |
+| between-seed SD of `H_unigram` | **7.47e−05 nats** |
+| local slope in `ln V` | **1.26e−04 nats per ln V** |
+| implied argmin displacement | **1.31e−02 in ln V** |
+| M1 margin (`ln 1.5`) vs that displacement | **31×, 95% CI 19.9×–44.9×** |
 
-So the bias alone would very likely not have flipped M1: 23× is comfortable, though it is
-the second-tightest margin measured in this study — looser than P2's smoothing convention at
-57×, tighter than nothing else except P4's EOS separator at 8.7×.
+**Quote the interval, not the point estimate — the point estimate is not stable.** At three
+seeds this read 23.0×; at eight it reads 31×. The slope is a finite difference of
+seed-*averaged* biases, so its noise is set by `seed_sd/√n` and is not small next to the
+slope itself. The bootstrap resamples the seed vector jointly, matching the study's own
+seed-level block bootstrap. An earlier draft of this section quoted **23.0×** as though the
+last digit carried information; it did not.
 
-**The 23× is not why the fix is required.** A margin argument cannot rescue the second harm,
-because a variance component that is set to zero by construction is not a small error in an
-estimate — it is a different estimand. That is the same objection this whole amendment makes
-about initialisation-only seeds, and it would have been self-defeating to fix one and
-introduce the other.
+The defensible reading is the one the interval supports: **the displacement sits at least
+about twenty-fold inside the M1 margin.** That is comfortable, and it is still the
+second-tightest margin measured in this study — looser than P2's smoothing convention at
+57×, tighter than everything except P4's EOS separator at 8.7×.
+
+**The margin is not why the fix is required**, and this is not a justification retrofitted
+after a comfortable number came back — it is the argument that was made when the defect was
+found. A margin argument cannot reach the second harm at all. A variance component set to
+zero by construction is not a small error in an estimate; it is a different estimand, and no
+margin makes it the right one. That is the same objection this amendment makes about
+initialisation-only seeds, and it would have been self-defeating to fix one while
+introducing the other. The bias measurement bounds how much the *first* harm would have
+cost; it says nothing about the second, which is the harm that forces the change.
 
 ---
 

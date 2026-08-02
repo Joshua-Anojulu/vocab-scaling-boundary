@@ -142,6 +142,17 @@ def unigram_logp(
       quantity Stage B.7 exists to estimate.
 
     `consumed` is a token count; with `order` it is converted to whole sequences.
+
+    **The two regimes fit on sets that differ by two boundary tokens**, and that is stated
+    here rather than left to be discovered. Sequential consumption of `n` sequences counts
+    positions `[0, n*B)`; the target convention counts `[1, n*B]`, since sequence `k`
+    contributes `[k*B+1, k*B+B+1)`. Each position is counted exactly once under both -- the
+    target blocks are disjoint, so nothing is double-counted -- and the sets differ only in
+    that one excludes position `0` and the other includes position `n*B`. On study budgets
+    that is 2 tokens in ~1.8e08, and every confirmatory run uses the same regime, so it
+    cannot enter a comparison. The targets convention is the correct one for the permuted
+    case regardless, because the model's loss and the evaluation unigram term are both over
+    targets.
     """
     counts = np.zeros(vocab_size, dtype=np.int64)
     total = 0
