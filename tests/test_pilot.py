@@ -236,3 +236,28 @@ def test_pilot_step_counts_sit_inside_taos_own_range() -> None:
     ours = [c.target_tokens // T.BLOCK_SIZE // P.GLOBAL_BATCH_SEQUENCES
             for c in P.pilot_cells()]
     assert all(lo <= s <= hi for s in ours), f"ours {sorted(ours)} outside Tao's [{lo:.0f},{hi:.0f}]"
+
+
+def test_step_counts_are_reported_by_percentile_not_just_membership() -> None:
+    """A 20x-wide range makes 'inside it' nearly vacuous; pin the actual position.
+
+    This exists because the amendment first claimed only "inside their range", which is
+    true and much weaker than it sounds. If a future change moves the study out of the low
+    tail, the amendment's stated position becomes wrong and this fails.
+    """
+    import pandas as pd
+    from src import reference as ref
+
+    data = Path(__file__).resolve().parents[1] / "reference" / "exp_data.csv"
+    if not data.exists():
+        pytest.skip("reference/exp_data.csv not present (regenerable, gitignored)")
+    d = pd.read_csv(data)
+    d["steps"] = (d.num_characters * d.vocab_size.map(ref.fertility)
+                  / (P.GLOBAL_BATCH_SEQUENCES * T.BLOCK_SIZE))
+    smallest = d[d.Non_vocab_parameters < 3.4e7]
+
+    ours = [c.target_tokens // T.BLOCK_SIZE // P.GLOBAL_BATCH_SEQUENCES
+            for c in P.pilot_cells()]
+    pct = [(smallest.steps < s).mean() * 100 for s in ours]
+    assert 5 <= min(pct) <= 20, f"low end moved: {min(pct):.0f}th percentile"
+    assert 5 <= max(pct) <= 25, f"high end moved: {max(pct):.0f}th percentile"

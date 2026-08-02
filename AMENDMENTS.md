@@ -431,6 +431,18 @@ range and above their minimum. Recomputed in `tests/test_pilot.py` from
 `reference/exp_data.csv` rather than quoted, so a future change that moves the study outside
 their range fails a test.
 
+**"Inside their range" overstates it, and the precise position is this:** their range spans
+20×, so landing inside it is a weak test. Our step counts sit at the **10th–15th percentile**
+of their smallest-scale runs — at the low end, not mid-distribution.
+
+That is expected rather than alarming, and the reason is the study's own premise. Our pilot
+budget is `C = 1.031e16` against their smallest-scale ladder of `1.272e16` to `5.940e17`:
+**0.81× their smallest budget.** This study exists to probe *below* the region they fitted,
+so running at fewer optimizer steps than most of their runs is the direct consequence of the
+question being asked, not a defect in the recipe. The claim A7 rests on is the narrow one —
+these step counts are not outside the regime the law was fitted in — and not the broader one
+that they are typical of it.
+
 The alternative — a small effective batch of 16 sequences, which is what a
 throughput-first choice would have produced — gives ~6,000 optimizer steps, **10× Tao's
 median at the comparable scale**, at a learning rate tuned for a batch 32× larger. That is
