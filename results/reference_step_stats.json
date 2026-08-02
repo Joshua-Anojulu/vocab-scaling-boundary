@@ -1,0 +1,25 @@
+{
+  "source": "sail-sg/scaling-with-vocab exp_data.csv",
+  "csv_sha256": "6571e877469a44cb50b2d05e1fa485587369ee1c47941a4b3b2bfef80496f1b2",
+  "csv_rows": 1200,
+  "global_batch_sequences": 512,
+  "block_size": 2048,
+  "smallest_non_vocab_parameters": 33222784.0,
+  "smallest_family_rows": 200,
+  "evals_per_run": 20,
+  "runs_in_smallest_family": 10,
+  "nominal_steps": {
+    "q00": 57.220458984374986,
+    "q10": 165.9393310546876,
+    "q25": 329.01763916015625,
+    "q50": 600.8148193359375,
+    "q75": 872.6119995117188,
+    "q100": 1144.4091796875002
+  },
+  "artifact_steps_33m": {
+    "first": 60,
+    "last": 1200,
+    "note": "released checkpoint filenames"
+  },
+  "note": "Rows are 20 in-training evaluations per (vocabulary, scale), from compute_eval_steps(max_steps, evals_per_interval=20) -- NOT separate runs. The step values are therefore checkpoint positions within a run, and the largest is that run's length."
+}

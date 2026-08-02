@@ -523,3 +523,47 @@ run per budget with warmup scaled to that run; Tao read intermediate checkpoints
 run whose warmup was scaled to the longer run. At the low-compute end the learning-rate
 trajectories therefore differ, and that is a procedural departure from the reference which
 must be stated in the paper rather than left for a reader to discover in the code.
+
+**Remaining round-1 corrections, applied.**
+
+*What A7 is.* It is a **prospective clarification of a hyperparameter the preregistration
+omitted**, not a restatement of something `PLAN.md` already fixed. `PLAN.md` says "the shared
+Tao training recipe" and stops there. The effective batch and the warmup fraction are
+therefore **unpreregistered researcher choices**, made before any outcome was observed and
+recorded here for that reason. Nothing about the framing should suggest the plan settled
+them; it did not, and the honest description is that this study is fixing them now, in
+public, in advance.
+
+*Step counts, corrected twice.* The pilot figure "130–189" was **floored whole batches, not
+optimizer updates**. With the trimmed final step the actual update counts are **131–190**;
+`tests/test_pilot.py` now computes them through `TrainConfig.total_steps` so the amendment
+cannot drift from the code.
+
+*Nominal versus artifact.* The reference figures "57 to 1,144, median 601" are **nominal**,
+derived here as `num_characters · f(V) / (512 · 2048)`. The released checkpoint filenames for
+the 33M family run `step-000060` to `step-001200`, median 630 — so the derivation and Tao's
+own emitted artifacts do not agree exactly. Both are recorded in
+`results/reference_step_stats.json`. The comparison uses the nominal values because they are
+what this repository can recompute from released data; the artifact values are recorded so the
+discrepancy is visible rather than buried. **The conclusion is unchanged under either**: the
+pilot sits in the lower tail on both.
+
+*Position, stated precisely.* The claim is **lower-tail but above the minimum** — roughly the
+10th–15th percentile, and 0.21–0.30× the median. It is **not** that the pilot is typical of
+their grid, and range-inclusion is explicitly disclaimed as too weak to carry the decision:
+their range spans 20×.
+
+*Provenance of the step statistics.* `reference/exp_data.csv` is gitignored as regenerable,
+which meant the test guarding these numbers **silently skipped in any clone lacking it**,
+including the reviewer's. A test that guards a claim and does not run reads as coverage it
+does not provide. The statistics now live in a committed artifact,
+`results/reference_step_stats.json`, carrying the CSV's sha256 so the summary can be checked
+against the source wherever the source is present.
+
+*Micro-batch, measured.* `results/pilot_batch_probe.json` was regenerated against derived
+`grad_accum`; the earlier file compared effective batches of 16 and 64, which this amendment
+rejects and the pilot will never run at. Across micro-batches 2/4/8/16 at the matching
+`grad_accum` of 256/128/64/32, **micro_batch=4 is fastest and second-cheapest in memory**:
+9.48 h projected for 18 runs at 1.89 GB peak, against 10.26/10.56/10.96 h for the others.
+Measuring at the real `grad_accum` changed the projection materially — the stale file
+projected 13.04 h — because the optimizer step amortises very differently at `ga=128`.
