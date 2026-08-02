@@ -110,6 +110,41 @@ def test_unigram_fits_only_the_consumed_prefix():
     assert float(np.exp(half[0])) > 0.8
 
 
+def test_unigram_follows_the_permuted_order_not_the_prefix():
+    """Under a seed permutation the consumed set is scattered, so a prefix fit is wrong.
+
+    Built so the two answers cannot coincide: the array's first half is all zeros and its
+    second half all ones, and the order picks sequences from the second half only. A prefix
+    fit would report token 0 dominant; the correct fit reports token 1 dominant.
+    """
+    block = 4
+    toks = np.array([0] * 12 + [1] * 13, dtype=np.uint16)
+    order = np.array([3, 4, 5], dtype=np.int64)          # sequences at 12.., 16.., 20..
+    consumed = 3 * block
+
+    prefix_fit = E.unigram_logp(toks, vocab_size=2, consumed=consumed)
+    permuted_fit = E.unigram_logp(toks, vocab_size=2, consumed=consumed,
+                                  order=order, block_size=block)
+
+    assert float(np.exp(prefix_fit[0])) > 0.8            # what the OLD code would report
+    assert float(np.exp(permuted_fit[1])) > 0.8          # what the model actually read
+    assert float(np.exp(permuted_fit[0])) < 0.2
+
+
+def test_unigram_permuted_fit_requires_a_block_size():
+    with pytest.raises(ValueError, match="block_size is required"):
+        E.unigram_logp(np.zeros(8, dtype=np.uint16), vocab_size=2,
+                       order=np.array([0, 1], dtype=np.int64))
+
+
+def test_consumed_target_blocks_are_targets_not_inputs():
+    """Sequence k spans [k*B, k*B+B+1); its TARGETS are [k*B+1, k*B+B+1)."""
+    block = 4
+    toks = np.arange(21, dtype=np.uint16)
+    blocks = list(E.consumed_target_blocks(toks, block, np.array([0, 2]), 2))
+    assert [b.tolist() for b in blocks] == [[1, 2, 3, 4], [9, 10, 11, 12]]
+
+
 def test_unigram_rejects_out_of_range_ids():
     with pytest.raises(ValueError, match="outside"):
         E.unigram_logp(np.array([0, 5], dtype=np.uint16), vocab_size=2)

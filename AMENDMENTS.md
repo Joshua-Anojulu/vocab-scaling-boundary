@@ -294,3 +294,91 @@ measurement determined only the size of the forgone saving.
 
 **Consequence carried into reporting:** the study spends ~13 GPU-hours it did not have to.
 That is stated as a deliberate design choice, not an oversight.
+
+---
+
+## A6 — what a seed varies (2026-08-01)
+
+**Status: ADOPTED.** Supersedes A1 in part. Proposal and measurements:
+`results/seed-semantics-proposal.md`. Review record: `PLAN-REVIEW-LOG.md`, seed-semantics
+track, rounds 1–2.
+
+### The gap in the preregistration
+
+`PLAN.md` requires BCa resampling "at the seed level within scale (seeds are the
+exchangeable unit; vocabulary points are fixed design)" but **never states what a seed
+varies.** The implementation answered by accident: `torch.manual_seed(cfg.seed)` was the
+seed's only use and the token stream was strictly sequential, so seeds varied model
+initialisation while every seed read identical tokens in identical order.
+
+### The amendment
+
+**For seed-replicated pilot and confirmatory runs, a seed varies model initialisation AND
+data order.** Concretely:
+
+* The ordered corpus is fixed **within a `(vocabulary, seed)`**. One permutation of sequence
+  order is drawn per `(vocabulary, seed)` over the WHOLE token array, and every budget reads
+  a prefix of it. `PLAN.md`'s requirement that runs at different budgets "see the same tokens
+  in the same order, differing only in how far they read" therefore holds within a seed.
+* **Across seeds, data order and the consumed sequence subset vary by design.** This is the
+  point of the amendment.
+* The M2 `C` and `1.1·C` arms **must share the same `(vocabulary, seed)` permutation**, or
+  matched-seed pairing is broken.
+* The bootstrap resamples **the complete six-configuration seed vector as one block.**
+* Sequences are self-contained — sequence `k` spans `tokens[k*B : k*B + B + 1]`, `B` inputs
+  plus the one lookahead token supplying its final target — so reordering cannot manufacture
+  a next-token pair absent from the corpus. This matches the reference, which requests
+  `effective_block_size = block_size + 1` for the same reason.
+* **`H_unigram` is fitted on the sequences the run actually consumed**, not on a contiguous
+  prefix. A3's phrase "the consumed train prefix" described sequential consumption; under
+  permutation the consumed set is scattered and a prefix fit would both bias the baseline
+  and delete a real component of its seed variance.
+
+### What A1 said, and what survives
+
+A1 states that "every run reads the same documents in the same sequence." That is
+**superseded in part**: it holds within a `(vocabulary, seed)`, not globally across seeds.
+A1 is otherwise unchanged — the corpus, the split boundaries, and the tokenized arrays are
+untouched by this amendment. Nothing is re-tokenized and no GPU time is added: same tokens,
+same count, different order.
+
+### What this amendment does NOT claim
+
+Recorded explicitly, because each was either asserted and withdrawn during review or is a
+claim the design does not need:
+
+1. **Not** that initialisation-only variance is a lower bound on run-to-run variance, nor
+   that every consequence runs in one direction. That claim was made in an early draft and
+   is **withdrawn**. A fixed-order conditional variance is not mathematically guaranteed to
+   sit below the order-averaged variance for every statistic, and order effects can cancel
+   or amplify in paired contrasts such as `D`. The defensible claim, which is what justifies
+   the amendment, is that initialisation-only seeds **estimate the wrong variance
+   component**: the estimand the design requires is joint over initialisation and data
+   order. Anti-conservative TOST is the *expected* direction, reported as an expectation and
+   not as a proof.
+2. **Not** that all runs read the same documents in the same sequence. See above.
+3. **Not** that `np.random.default_rng(seed).permutation(n)` is stable across NumPy
+   versions. It is not promised to be. The design does not require cross-version
+   reproducibility — a `(vocabulary, seed)` group is produced by one process — but
+   `numpy_version` and `order_digest` are recorded so a repeat after an upgrade is visible
+   rather than silent.
+4. **Not** that the unigram baseline is a contiguous consumed prefix. It is the consumed
+   sequence set; see above.
+
+### Enforcement, because a contract in prose is what failed here
+
+The original defect was a requirement that lived in the preregistration while the code
+satisfied it by accident. The same failure mode is closed structurally:
+
+* `train_run` **refuses** a stream whose `order_seed` is not the run's `seed`; corpus order
+  requires an explicit `unseeded_order_ok=True`, which no confirmatory run sets.
+* `TrainResult` records `order_seed`, `stream_sequences`, `sequences_consumed`,
+  `tokens_digest`, `order_digest` and `numpy_version`, so nesting and matched-seed pairing
+  are auditable from the artifacts without trusting the runner.
+
+### Reporting obligation
+
+The pilot must report initialisation and data-order variance jointly, and state that it does
+so. `PLAN.md`'s "what must be recorded" asks for the two components separately where
+possible; the joint estimate is what the inference uses, and any separate reporting is
+descriptive only.

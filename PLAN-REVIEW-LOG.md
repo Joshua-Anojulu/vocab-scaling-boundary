@@ -1377,3 +1377,118 @@ added two robustness checks unprompted, and found one precision error (8.7× / 3
 verifying a fix.
 
 `PLAN.md` was not edited at any point. Its `final_body_sha256` binding is intact.
+
+---
+
+# Seed-semantics track
+
+A separate review track from the A3/A4 amendment track above. Trigger: while building the
+Stage B.7 pilot runner, `PLAN.md` was found to require seed-level bootstrap resampling
+without ever stating what a seed varies — and the implementation had answered by accident,
+varying initialisation only.
+
+## Round 1 — VERDICT: CHANGES REQUIRED (5 blocking, 0 advisory)
+
+All five accepted, none rejected. Two are worth recording in full because they corrected the
+author rather than the artifact.
+
+**The author's proposed fix was itself defective.** The proposal said "permute the block
+indices." Against the then-current `TokenStream`, that would have concatenated permuted
+blocks and formed targets by shifting across the joins, inventing one false next-token pair
+per block — about 0.049% of targets at B=2048, the same order as the EOS effects that A4
+treats as decision-relevant. The fix would have traded a variance defect for a data defect.
+Sequences were made self-contained instead (`tokens[k*B : k*B + B + 1]`), which is what the
+reference already does via `effective_block_size = block_size + 1`, so the repair moves
+toward the reference rather than away from it.
+
+**The author's bias claim was overstated and is withdrawn.** The draft said
+initialisation-only variance is a lower bound on run-to-run variance with all consequences in
+one direction. A fixed-order conditional variance is not guaranteed below the order-averaged
+variance for every statistic, and order effects can cancel or amplify in paired contrasts
+like `D`. The surviving claim — that the pilot would estimate the *wrong variance component* —
+is sufficient to block B.7 and does not depend on a direction.
+
+The reviewer also found a second, unrelated defect: `TrainConfig.total_steps` ceiled the step
+count while its docstring claimed the final step was trimmed. Nothing trimmed it, so every
+run overshot its budget. Two of the author's descriptions of the reference were also wrong —
+`create_dataloaders` passes `shuffle=False`, so the `PackedDataset` buffer shuffle is
+inactive on the path actually used.
+
+## Round 2 — VERDICT: CHANGES REQUIRED (5 blocking, 1 advisory)
+
+Submitted after the round-1 fixes plus three enforcement guards the author added
+unprompted. All six accepted.
+
+**The blocking finding the author should have caught: the fix broke the primary metric.**
+`L_u = CE_model − H_unigram`, and `H_unigram` was fitted on `train_tokens[:consumed]`. That
+was correct only while consumption was sequential. Permuting sequence order makes the
+consumed set scattered, so the baseline was being fitted on text the model never read — and,
+worse, on a set *identical across seeds* while the model's set is not, deleting a real
+component of seed variance from the metric whose seed variance Stage B.7 exists to estimate.
+The seed-order fix would have introduced a defect into `L_u` while repairing one in the
+variance estimate.
+
+Now measured rather than argued (`scripts/unigram_order_sensitivity.py`, real tokenized pilot
+data, three seeds, evaluation targets held fixed so only the fit set moves): worst bias
+**1.168e−04 nats**, worst between-seed SD **4.345e−05 nats**, worst local slope
+**1.701e−04 nats per ln V**, implied argmin displacement **1.763e−02 in ln V** — the M1
+margin is **23.0×** larger. So the bias alone would probably not have flipped M1, but 23× is
+the second-tightest margin in this study after P4's 8.7×. The margin is not the reason the
+fix is required: a variance component set to zero by construction is a different estimand,
+not a small error, which is the same objection this amendment makes about
+initialisation-only seeds.
+
+**The gradient weighting was wrong on trimmed steps.** `loss / len(micro)` is correct only
+for equal-size micro-batches. On a trimmed final step of `[4, 4, 4, 1]` the one-sequence
+batch received 1/4 of the gradient instead of 1/13. Now weighted by each micro-batch's share
+of the step's sequences, checked in a test against a single full-batch backward pass.
+
+**The author's own witness was too weak.** The added `stream_sequences` field cannot
+distinguish a different token array of the same length, a different same-length slice, or a
+change in the permutation algorithm. Now `tokens_digest`, `order_digest`,
+`sequences_consumed` and `numpy_version` as well — the last because
+`np.random.default_rng(seed).permutation(n)` is **not promised stable across NumPy
+versions**, a claim the amendment now explicitly disclaims rather than relies on.
+
+The reviewer also caught the withdrawn bias claim reappearing in a sentence the author had
+missed ("sized by a number known to be too small"), and specified what A6 must and must not
+say. The advisory concerned the lookahead token: self-contained sequences need
+`n*B + 1` ids, and `target_sequences` could exceed budget for a sub-block budget via its
+`max(1, ...)` floor — the single case where the convention could violate the property it
+exists to enforce. That path now raises.
+
+### ⚠️ A precision error the author introduced and then caught
+
+Between rounds the author "corrected" the budget figures from +0.0129%/−0.0011% to
++0.0134%/−0.0010%. **The correction was wrong and has been reverted.** It was computed
+against `C` hardcoded as `1.03084e16`, while the codebase derives
+`C = 1.0308446911162678e16`. The reviewer independently reproduced the original figures,
+which is what surfaced the error.
+
+The rounding is a relative change of **4.6e−06**, yet it moved the worst cell by 4%, because
+the per-cell overshoot depends on `T_target mod tokens_per_step` and is therefore
+*chaotically* sensitive to `C`. The operative lesson is not "round more carefully" — it is
+that **the per-cell overshoot is not a stable quantity and nothing should reason from it.**
+The stable quantity is the bound `(tokens_per_step − 1) / T_target`. Both are now emitted by
+`scripts/budget_convention_error.py`, deriving `C` and the vocabulary grid from `src/` rather
+than from a transcribed literal.
+
+This is the fourth precision error of this family in the project, after the 9.0×/8.7× and
+37×/36.6× corrections. The first three were rounded printed values quoted as measurements;
+this one was a transcribed constant. The structural response — figures regenerate from an
+artifact, constants derive from the codebase — addresses the family rather than the instance.
+
+## Outcome
+
+**A6 is ADOPTED**, dated 2026-08-01, superseding A1 in part. Tests: 154 passing.
+`PLAN.md` was not edited; `git log --all -- PLAN.md` still shows the single initial commit
+and the `final_body_sha256` binding is intact.
+
+**Tally across the seed-semantics track so far: 2 rounds, 11 findings, 0 rejected.** The
+reviewer refuted the author's proposed fix, withdrew the author's bias claim, corrected two
+of the author's descriptions of the reference, found a defect in the primary metric that the
+author's own fix had introduced, and rejected the author's first attempt at an audit
+witness. The author independently found three enforcement gaps and one precision error of
+its own making.
+
+A confirmation round has not yet been run against these fixes.

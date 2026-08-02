@@ -71,6 +71,20 @@ def test_budget_is_never_exceeded_and_shortfall_is_sub_sequence() -> None:
     assert cfg.target_tokens - planned < cfg.block_size    # shortfall under one sequence
 
 
+def test_sub_block_budget_is_refused_rather_than_rounded_up() -> None:
+    """The one case where the old floor could EXCEED the target it exists to bound."""
+    cfg = T.TrainConfig(target_tokens=100, micro_batch=1, block_size=2048)
+    with pytest.raises(ValueError, match="under one sequence"):
+        _ = cfg.target_sequences
+
+
+def test_stream_needs_one_id_beyond_the_last_block_for_its_final_target() -> None:
+    """n*B ids yield n-1 sequences, not n: the last target is a lookahead token."""
+    block = 8
+    assert T.TokenStream(np.zeros(block * 4, dtype=np.uint16), block).n_sequences == 3
+    assert T.TokenStream(np.zeros(block * 4 + 1, dtype=np.uint16), block).n_sequences == 4
+
+
 def test_run_consumes_exactly_the_planned_tokens() -> None:
     block, mb = 64, 2
     # Deliberately NOT a whole multiple of a step, so the final step must be trimmed.
@@ -153,6 +167,51 @@ def test_confirmatory_run_refuses_a_stream_whose_order_is_not_tied_to_the_seed()
     res = T.train_run(tiny_model(vocab=64, block=block),
                       T.TokenStream(toks, block, order_seed=5), cfg)
     assert (res.order_seed, res.stream_sequences) == (5, 40)
+
+
+def test_trimmed_final_step_weights_micro_batches_by_size_not_count() -> None:
+    """[4,4,4,1]: the 1-sequence batch must get 1/13 of the gradient, not 1/4.
+
+    Checked against an explicit full-batch reference: accumulating the trimmed step must
+    give the same gradient as one backward pass over all its sequences at once.
+    """
+    block, V = 8, 32
+    torch.manual_seed(0)
+    m = tiny_model(vocab=V, block=block)
+    toks = np.random.RandomState(1).randint(0, V, size=block * 40 + 1).astype(np.uint16)
+    dev = torch.device("cpu")
+
+    def grads_from(micro: list[int]) -> torch.Tensor:
+        m.zero_grad(set_to_none=True)
+        s = T.TokenStream(toks, block)
+        n = sum(micro)
+        for b in micro:
+            x, y = s.next_batch(b, dev)
+            (m.loss(x, y) * (b / n)).backward()
+        return torch.cat([p.grad.flatten() for p in m.parameters() if p.grad is not None])
+
+    def grads_whole(n: int) -> torch.Tensor:
+        m.zero_grad(set_to_none=True)
+        s = T.TokenStream(toks, block)
+        x, y = s.next_batch(n, dev)
+        m.loss(x, y).backward()
+        return torch.cat([p.grad.flatten() for p in m.parameters() if p.grad is not None])
+
+    accumulated, whole = grads_from([4, 4, 4, 1]), grads_whole(13)
+    assert torch.allclose(accumulated, whole, atol=1e-5), "trimmed step is mis-weighted"
+
+
+def test_run_records_a_witness_that_distinguishes_equal_length_corpora() -> None:
+    """stream_sequences alone cannot tell two different arrays of the same length apart."""
+    block = 8
+    a = np.arange(block * 20 + 1, dtype=np.uint16)
+    b = (np.arange(block * 20 + 1, dtype=np.uint16) + 7) % 500
+    sa, sb = T.TokenStream(a, block, order_seed=2), T.TokenStream(b, block, order_seed=2)
+    assert sa.n_sequences == sb.n_sequences        # the weak witness cannot separate them
+    assert sa.tokens_digest != sb.tokens_digest    # the strong one can
+    # order_digest agrees over a common prefix, which is what nesting requires.
+    sa.next_batch(4, torch.device("cpu"))
+    assert sa.order_digest(4) == sb.order_digest(4)
 
 
 def test_seeds_differing_only_in_order_produce_different_runs() -> None:

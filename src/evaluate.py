@@ -88,29 +88,77 @@ def scored_targets(tokens: np.ndarray, plan: BlockPlan) -> np.ndarray:
 # --- the unigram baseline -------------------------------------------------------------
 
 
-def unigram_logp(
-    train_tokens: np.ndarray, vocab_size: int, consumed: int | None = None, alpha: float = 1.0
-) -> np.ndarray:
-    """Add-alpha unigram log-probabilities over [0, V), fitted on the consumed train prefix.
+def _accumulate(counts: np.ndarray, block: np.ndarray, vocab_size: int) -> int:
+    block = np.asarray(block, dtype=np.int64)
+    if not block.size:
+        return 0
+    # Checked explicitly: an id >= vocab_size makes bincount return a LONGER array, so
+    # without this the failure surfaces as an opaque numpy broadcast error instead of
+    # naming the actual problem.
+    if block.max() >= vocab_size or block.min() < 0:
+        raise ValueError(
+            f"training tokens outside [0,{vocab_size}): "
+            f"saw [{int(block.min())}, {int(block.max())}]"
+        )
+    counts += np.bincount(block, minlength=vocab_size)
+    return int(block.size)
 
-    `consumed` is the number of training tokens the run actually saw. Passing the whole
-    array when the run consumed less would fit the baseline on text the model never read.
+
+def consumed_target_blocks(
+    train_tokens: np.ndarray, block_size: int, order: np.ndarray, n_sequences: int
+):
+    """The TARGET ids of the sequences a run actually trained on, in consumption order.
+
+    Sequence `k` spans `tokens[k*B : k*B + B + 1]`, so its targets are `[k*B+1, k*B+B+1)`.
+    Targets rather than inputs, because the model's loss is over targets and the evaluation
+    unigram term is over eval targets -- the two sides must count the same kind of thing.
     """
-    end = len(train_tokens) if consumed is None else min(consumed, len(train_tokens))
+    B = block_size
+    for k in np.asarray(order[:n_sequences], dtype=np.int64):
+        s = int(k) * B
+        yield train_tokens[s + 1 : s + B + 1]
+
+
+def unigram_logp(
+    train_tokens: np.ndarray,
+    vocab_size: int,
+    consumed: int | None = None,
+    alpha: float = 1.0,
+    order: np.ndarray | None = None,
+    block_size: int | None = None,
+) -> np.ndarray:
+    """Add-alpha unigram log-probabilities over [0, V), fitted on what the run actually read.
+
+    Two regimes, and picking the wrong one silently fits the baseline on text the model
+    never saw:
+
+    * `order=None` -- sequential consumption. The consumed set is the prefix
+      `train_tokens[:consumed]`, which is what the original implementation assumed.
+    * `order` given -- **seed-permuted consumption**, which is now the confirmatory case.
+      A seed permutes sequence order, so the consumed set is a SCATTERED subset, not a
+      prefix. Fitting on a prefix here would fit the baseline on text the model never read
+      and, worse, on a set that is identical across seeds while the model's set is not --
+      quietly removing a real component of seed variance from `L_u`, which is exactly the
+      quantity Stage B.7 exists to estimate.
+
+    `consumed` is a token count; with `order` it is converted to whole sequences.
+    """
     counts = np.zeros(vocab_size, dtype=np.int64)
-    step = 1 << 26
-    for s in range(0, end, step):
-        block = np.asarray(train_tokens[s : min(s + step, end)], dtype=np.int64)
-        # Checked explicitly: an id >= vocab_size makes bincount return a LONGER array, so
-        # without this the failure surfaces as an opaque numpy broadcast error instead of
-        # naming the actual problem.
-        if block.size and (block.max() >= vocab_size or block.min() < 0):
-            raise ValueError(
-                f"training tokens outside [0,{vocab_size}): "
-                f"saw [{int(block.min())}, {int(block.max())}]"
-            )
-        counts += np.bincount(block, minlength=vocab_size)
-    return np.log((counts + alpha) / (end + alpha * vocab_size))
+    total = 0
+
+    if order is None:
+        end = len(train_tokens) if consumed is None else min(consumed, len(train_tokens))
+        step = 1 << 26
+        for s in range(0, end, step):
+            total += _accumulate(counts, train_tokens[s : min(s + step, end)], vocab_size)
+    else:
+        if block_size is None:
+            raise ValueError("block_size is required when fitting on a permuted order")
+        n_seq = len(order) if consumed is None else min(consumed // block_size, len(order))
+        for block in consumed_target_blocks(train_tokens, block_size, order, n_seq):
+            total += _accumulate(counts, block, vocab_size)
+
+    return np.log((counts + alpha) / (total + alpha * vocab_size))
 
 
 # --- the model term -------------------------------------------------------------------
@@ -215,8 +263,14 @@ def evaluate_run(
     device: str = "cuda",
     bytes_cache: Path | None = None,
     alpha: float = 1.0,
+    train_order: np.ndarray | None = None,
 ) -> EvalResult:
-    """Produce `L_u` and BPB for one trained model, both terms over identical positions."""
+    """Produce `L_u` and BPB for one trained model, both terms over identical positions.
+
+    `train_order` is the run's consumed sequence order (`TokenStream.consumed_order`). It
+    must be passed for any seed-permuted run, or the unigram baseline is fitted on a
+    contiguous prefix the model never read. See `unigram_logp`.
+    """
     plan = plan_blocks(len(eval_tokens), block_size, batch)
     targets = scored_targets(eval_tokens, plan)
     if len(targets) != plan.n_scored:
@@ -224,13 +278,21 @@ def evaluate_run(
             f"target extraction disagrees with the plan: {len(targets)} vs {plan.n_scored}"
         )
 
-    logp = unigram_logp(train_tokens, vocab_size, consumed_train_tokens, alpha)
+    logp = unigram_logp(
+        train_tokens, vocab_size, consumed_train_tokens, alpha,
+        order=train_order, block_size=block_size,
+    )
     uni_nll = float(-logp[targets].sum())
     mdl_nll = model_nll_nats(model, eval_tokens, plan, chunk_size, device)
 
-    fit_n = len(train_tokens) if consumed_train_tokens is None else min(
-        consumed_train_tokens, len(train_tokens)
-    )
+    if train_order is None:
+        fit_n = len(train_tokens) if consumed_train_tokens is None else min(
+            consumed_train_tokens, len(train_tokens)
+        )
+    else:
+        n_seq = (len(train_order) if consumed_train_tokens is None
+                 else min(consumed_train_tokens // block_size, len(train_order)))
+        fit_n = n_seq * block_size
     return EvalResult(
         n_scored=plan.n_scored,
         n_dropped=plan.n_dropped,

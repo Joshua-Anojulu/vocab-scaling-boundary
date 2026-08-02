@@ -98,12 +98,23 @@ Three guards now close that:
 1. `train_run` **refuses** a stream whose `order_seed` is not the run's `seed`. Reading
    corpus order requires setting `unseeded_order_ok=True`, making it a declaration rather
    than an omission. Benchmark and smoke runs set it; confirmatory runs cannot.
-2. `TrainResult` records `order_seed` and `stream_sequences` — the size of the permuted
-   domain. The realistic way to break nesting is a caller slicing the token array to budget
-   before constructing the stream: the permutation is then drawn over a smaller domain, the
-   `1.1·C` arm stops nesting its `C` arm, and **nothing in the loss curves would show it.**
-   Requiring equal `stream_sequences` across a `(vocabulary, seed)` group makes it auditable
-   from the artifacts alone.
+2. `TrainResult` records a witness that makes nesting auditable from the artifacts alone.
+   The realistic way to break nesting is a caller slicing the token array to budget before
+   constructing the stream: the permutation is then drawn over a smaller domain, the `1.1·C`
+   arm stops nesting its `C` arm, and **nothing in the loss curves would show it.** A first
+   version recorded only `stream_sequences`, which the reviewer correctly rejected as
+   insufficient — it cannot distinguish a different token array of the same length, a
+   different same-length slice, or a change in the permutation algorithm itself. The
+   recorded witness is now `order_seed`, `stream_sequences`, `sequences_consumed`,
+   `tokens_digest` (content, not length), `order_digest` (the consumed permutation prefix),
+   and `numpy_version`.
+
+   On that last field: `np.random.default_rng(seed).permutation(n)` is **not promised stable
+   across NumPy versions**, and this design must not claim it is. Nothing here needs
+   cross-version reproducibility — the permutation only has to be fixed within a
+   `(vocabulary, seed)` group, and a group is produced by one process — but a run repeated
+   after an upgrade may read a different order, and `order_digest` is what makes that
+   visible instead of silent.
 3. The nesting test previously compared two whole streams built from the same array and
    seed, which is tautologically true and could not fail. It now reads two different budgets
    and asserts the smaller is a strict prefix of the larger, and a companion test exercises
@@ -138,9 +149,9 @@ Rejected alternatives:
 
 The pilot's entire purpose is to estimate the variance that sets `n`. Running it under
 initialisation-only seeds would produce a variance estimate that the confirmatory runs then
-inherit — and the confirmatory runs would be sized by a number known to be too small. The
-pilot would have to be re-run. **This must be settled before B.7, not before the
-confirmatory runs.**
+inherit — and the confirmatory runs would be sized by a number **known to estimate the wrong
+variance component**, whose direction of error is expected but not proven. The pilot would
+have to be re-run. **This must be settled before B.7, not before the confirmatory runs.**
 
 ## What must be recorded either way
 
@@ -152,6 +163,53 @@ limitation must be stated in the direction of harm, not neutrally.
 
 ---
 
+## The fix broke the unigram baseline, and that had to be fixed too
+
+Found by the reviewer, not by the author, and it is the most consequential item here because
+it lands on the primary metric.
+
+`L_u = CE_model − H_unigram`, and amendment A3 fits `H_unigram` on **each config's consumed
+train prefix** — implemented as `train_tokens[:consumed]`. That implementation was correct
+only because consumption was sequential. **Permuting sequence order makes the consumed set
+scattered, so a prefix fit stops describing what the model read.** The seed-order fix would
+have introduced a defect into `L_u` while repairing one in the variance estimate.
+
+Two distinct harms, and the second is the one that actually forces the fix:
+
+1. **Bias.** The baseline is fitted on text the model never read.
+2. **A deleted variance component.** The prefix fit is *identical across seeds* while the
+   model's training set is not. It would have set the baseline's contribution to seed
+   variance to exactly zero — in the metric whose seed variance Stage B.7 exists to
+   estimate, inside the amendment that exists to stop exactly that kind of silent
+   variance deletion.
+
+**Fixed:** `unigram_logp` takes the run's consumed sequence order and fits on those
+sequences' targets. `TokenStream.consumed_order` supplies it, `evaluate_run` accepts it, and
+omitting it for a permuted run is the caller error the guards are there to catch.
+
+**Measured, not assumed** — `scripts/unigram_order_sensitivity.py`, on real tokenized pilot
+data, three seeds, evaluation targets held identical so only the fit set moves:
+
+| quantity | worst over the V grid |
+|---|---|
+| bias in `H_unigram`, prefix vs correct | **1.168e−04 nats** (V=3200) |
+| between-seed SD of `H_unigram` | **4.345e−05 nats** |
+| local slope in `ln V` | **1.701e−04 nats per ln V** |
+| implied argmin displacement | **1.763e−02 in ln V** |
+| M1 margin (`ln 1.5`) vs that displacement | **23.0×** |
+
+So the bias alone would very likely not have flipped M1: 23× is comfortable, though it is
+the second-tightest margin measured in this study — looser than P2's smoothing convention at
+57×, tighter than nothing else except P4's EOS separator at 8.7×.
+
+**The 23× is not why the fix is required.** A margin argument cannot rescue the second harm,
+because a variance component that is set to zero by construction is not a small error in an
+estimate — it is a different estimand. That is the same objection this whole amendment makes
+about initialisation-only seeds, and it would have been self-defeating to fix one and
+introduce the other.
+
+---
+
 ## A second defect found in the same review
 
 `TrainConfig.total_steps` ceiled the step count while its docstring claimed "the last step is
@@ -160,26 +218,33 @@ trimmed." Nothing trimmed it, and the loop consumed full batches every step, so 
 
 This matters for the same reason P4 does. IsoFLOP here is enforced on exact token counts, so
 an overshoot is a direct, `V`-dependent perturbation of `C`. Across the six pilot
-configurations the overshoot reaches **+0.0134%** at `micro_batch=4, grad_accum=4` (worst
-cell `V=12672`), and **+0.0850%** at `8/8` — the larger effective batch the VRAM pilot may
+configurations the overshoot reaches **+0.0129%** at `micro_batch=4, grad_accum=4` (worst
+cell `V=12672`), and **+0.0845%** at `8/8` — the larger effective batch the VRAM pilot may
 select. Converted through the IsoFLOP slope (`dL_u/d(lnC)` about -1.08 from Tao's own
-points), +0.0134% is roughly 1.4e-4 nats: an order below the P4 metric-side spread, but of
+points), +0.0129% is roughly 1.4e-4 nats: an order below the P4 metric-side spread, but of
 the same character, and free to remove.
 
 **Fixed.** The budget is now the largest whole number of sequences that does not exceed
-`T_target`, and the final step is genuinely trimmed — with gradients scaled by the
-micro-batches actually taken, so a short final step does not silently carry less weight than
-a full one. The error becomes an **undershoot of at most one sequence**: -0.0010% worst case
-across the six configurations, at both batch shapes, always conservative, with
-`consumed_tokens` reported exactly rather than assumed equal to target.
+`T_target`, and the final step is genuinely trimmed — with gradients weighted by each
+micro-batch's share of the step's sequences, so a short final step neither carries less
+weight than it should nor more. The error becomes an **undershoot of at most one sequence**:
+-0.0011% worst case across the six configurations, at both batch shapes, always
+conservative, with `consumed_tokens` reported exactly rather than assumed equal to target.
 
-**Both figures are re-derivable, not quoted.** `scripts/budget_convention_error.py` emits
-`results/budget_convention_error.json` with per-cell `target_tokens`, `old_tokens`,
-`new_tokens` and both error columns. An earlier draft of this section said **+0.0129%** and
-**-0.0011%**; neither reproduces under any rounding convention, and both were rounded
-printed values quoted back as measurements. That is the fourth instance of this specific
-failure in this project — after the 9.0×/8.7× and 37×/36.6× corrections — which is why the
-numbers now live in an artifact that regenerates rather than in prose.
+**The figures are re-derivable, and the reason matters.**
+`scripts/budget_convention_error.py` emits `results/budget_convention_error.json` with
+per-cell `target_tokens`, `old_tokens`, `new_tokens` and both error columns, deriving `C`
+and the vocabulary grid from `src/` rather than from a transcribed literal. That is not
+housekeeping: a draft of this section briefly reported **+0.0134% / -0.0010%**, computed
+against `C` rounded to `1.03084e16`. The rounding is a relative change of **4.6e-06**, but
+the per-cell overshoot depends on `T_target mod tokens_per_step`, so it is *chaotically*
+sensitive to `C` and the worst cell moved by 4%.
+
+The lesson is not "round more carefully." It is that **the per-cell overshoot is not a
+stable quantity and should not be the thing anyone reasons from.** The stable quantity is
+the bound `(tokens_per_step − 1) / T_target`, which varies smoothly and bounds every cell.
+The exact figures are reported because they are cheap to regenerate, not because a reader
+should rely on their last digit.
 
 Two smaller defects travelled with it, both artifacts of the same assumption that every step
 is full width. The throughput window added `cfg.tokens_per_step` per step regardless of

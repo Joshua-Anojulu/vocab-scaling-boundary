@@ -22,29 +22,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src import extension as ext, train as T  # noqa: E402
+from src import extension as ext, reference as ref, train as T  # noqa: E402
 
-PILOT_C = 1.03084e16
 PILOT_NNV = 8_000_000
-V_GRID = (768, 1536, 3200, 6272, 12672)
-V_RUN = 3200
 BATCH_SHAPES = ((4, 4), (8, 8))
 OUT = Path(__file__).resolve().parents[1] / "results" / "budget_convention_error.json"
 
 
-def target_tokens(nnv: int, d: int, V: int, budget: float) -> int:
-    """IsoFLOP is enforced on TOKENS, not characters: T = C / (6 * (N_nv + V*d))."""
-    return int(budget / (6 * (nnv + V * d)))
-
-
 def main() -> None:
     arch = ext.arch_for(PILOT_NNV)
+    # Derive C and the vocabulary grid from the codebase, never from a transcribed
+    # literal. Rounding C to 1.03084e16 is a relative change of only 4.6e-06, but the
+    # overshoot depends on `T_target mod tokens_per_step`, so it moves the worst cell
+    # from +0.0129% to +0.0134% -- see `sensitivity` below.
+    pilot_c = float(ref.Nnvopt_to_flops(arch.nnv))
+    v_grid = list(ext.vocab_grid(arch))
+    v_run = v_grid[len(v_grid) // 2]
     block = T.BLOCK_SIZE
     cells = []
 
-    arms = [(V, PILOT_C, "C") for V in V_GRID] + [(V_RUN, 1.1 * PILOT_C, "1.1C")]
+    arms = [(V, pilot_c, "C") for V in v_grid] + [(v_run, 1.1 * pilot_c, "1.1C")]
     for V, budget, arm in arms:
-        tt = target_tokens(arch.nnv, arch.d, V, budget)
+        tt = int(ext.target_tokens(budget, arch.nnv, arch.d, V))
         for mb, ga in BATCH_SHAPES:
             cfg = T.TrainConfig(target_tokens=tt, micro_batch=mb, block_size=block,
                                 grad_accum=ga)
@@ -69,8 +68,31 @@ def main() -> None:
             "worst_new_undershoot_pct": min(c["new_err_pct"] for c in sel),
         }
 
+    # How fragile is the headline overshoot figure? Recompute it against a C rounded to
+    # six significant figures. The answer is the reason the BOUND is what gets quoted.
+    sens = []
+    for label, c_alt in (("exact", pilot_c), ("rounded_1.03084e16", 1.03084e16)):
+        worst = 0.0
+        for V, mult in [(v, 1.0) for v in v_grid] + [(v_run, 1.1)]:
+            tt = int(ext.target_tokens(c_alt * mult, arch.nnv, arch.d, V))
+            tps = 4 * block * 4
+            worst = max(worst, 100.0 * (math.ceil(tt / tps) * tps - tt) / tt)
+        sens.append({"C_label": label, "C": c_alt, "worst_old_overshoot_pct_mb4_ga4": worst})
+
     out = {
-        "pilot_C": PILOT_C,
+        "pilot_C": pilot_c,
+        "vocab_grid": v_grid,
+        "v_run": v_run,
+        "sensitivity": sens,
+        "sensitivity_note": (
+            "The per-cell overshoot depends on T_target mod tokens_per_step, so it is "
+            "chaotically sensitive to C: rounding C by 4.6e-06 relative moves the worst "
+            "cell from +0.0129% to +0.0134%. The STABLE quantity is the bound "
+            "(tokens_per_step-1)/T_target, which is what any claim should rest on."
+        ),
+        "worst_old_bound_pct": max(
+            100.0 * (c["tokens_per_step"] - 1) / c["target_tokens"] for c in cells
+        ),
         "arch": {"target_nnv": PILOT_NNV, "d": arch.d, "n_layer": arch.n_layer,
                  "nnv": arch.nnv},
         "block_size": block,

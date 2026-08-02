@@ -8,9 +8,24 @@ Two decisions worth stating rather than burying:
 **Only the needed prefix of `train` is tokenized.** Each configuration consumes exactly
 `T_target = C / (6·(N_nv + V·d))` tokens, so tokenizing the whole 6 GB split under all
 twenty vocabularies would be ~120 GB of redundant work. Per-vocabulary requirements range
-from 0.08 GB to 2.33 GB of text. Corpus ORDER is preserved, so a run at a smaller budget
-reads a strict prefix of what a larger one reads -- which is what the plan means by
-holding the ordered corpus fixed.
+from 0.08 GB to 2.33 GB of text.
+
+Two qualifications, both load-bearing:
+
+**The array needs `T_target + 1` ids, not `T_target`.** Sequences are self-contained --
+sequence `k` spans `tokens[k*B : k*B + B + 1]`, `B` inputs plus the ONE lookahead token
+that supplies the final target. An array holding exactly `n*B` ids therefore yields only
+`n - 1` complete sequences, not `n`. The margins here are ~2% so this fails loudly via
+`TokenStream`'s "holds no complete sequence" check rather than silently shortening a run,
+but the requirement belongs in writing.
+
+**Corpus order is preserved in the ARRAY, which is no longer the order runs read it in.**
+It was, when consumption was sequential. Under the seed-semantics amendment a seed permutes
+sequence order, so "a smaller budget reads a strict prefix of a larger one" now holds
+per `(vocabulary, seed)` -- over the seed's permuted order -- rather than globally over
+corpus order. The plan's requirement that the ordered corpus be held fixed is met by
+drawing one permutation per `(vocabulary, seed)` over the WHOLE array and reading prefixes
+of it; slicing this array to budget before building the stream would break that.
 
 **Documents are joined with EOS.** Packed pretraining needs a boundary marker or the model
 learns to run one document into the next. The plan specifies three special tokens but not

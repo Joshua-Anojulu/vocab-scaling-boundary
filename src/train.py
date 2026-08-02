@@ -21,6 +21,7 @@ rather than a silent budget error.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import time
@@ -109,8 +110,20 @@ class TrainConfig:
         `scripts/budget_convention_error.py` into `results/budget_convention_error.json`
         rather than quoted, because three earlier numbers in this project were quoted from
         rounded output and had to be corrected.
+
+        A budget below one sequence is rejected rather than rounded up to one. The old
+        `max(1, ...)` floor was the single case where this property could be violated: it
+        returned one whole sequence for a sub-block budget, EXCEEDING the target, which is
+        the one thing this convention exists to prevent. No study configuration is near
+        that boundary, so this only ever fired in toy configurations -- where silently
+        overshooting is worse than refusing.
         """
-        return max(1, self.target_tokens // self.block_size)
+        if self.target_tokens < self.block_size:
+            raise ValueError(
+                f"budget of {self.target_tokens} tokens is under one sequence of "
+                f"{self.block_size}; rounding up would exceed the IsoFLOP target"
+            )
+        return self.target_tokens // self.block_size
 
     @property
     def total_steps(self) -> int:
@@ -137,13 +150,24 @@ class TrainResult:
     seed: int = 0
     order_seed: int | None = None
     stream_sequences: int = 0
-    """Size of the permuted domain, i.e. sequences in the WHOLE array, not the budget.
+    sequences_consumed: int = 0
+    tokens_digest: str = ""
+    order_digest: str = ""
+    numpy_version: str = ""
+    """Witness fields that make nesting auditable from the artifacts alone.
 
-    Recorded so nesting is auditable from the artifacts alone. Runs sharing a
-    `(vocabulary, seed)` must report identical `order_seed` AND `stream_sequences`; if a
-    caller slices the array to budget before building the stream, the permutation is drawn
-    over a smaller domain, the `1.1*C` arm stops nesting its `C` arm, and M2's matched-seed
-    pairing breaks. That is invisible in the loss curves and visible here.
+    Runs sharing a `(vocabulary, seed)` must agree on `order_seed`, `stream_sequences` and
+    `tokens_digest`, and their `order_digest` values must agree over the shorter run's
+    length. An earlier version recorded only `stream_sequences`, which is not sufficient:
+    it cannot distinguish a DIFFERENT token array of the same length, a different
+    same-length slice of the corpus, or a change in the permutation algorithm itself.
+
+    `numpy_version` is recorded because `np.random.default_rng(seed).permutation(n)` is
+    **not promised stable across NumPy versions**. Nothing in this design requires
+    cross-version reproducibility -- the permutation only has to be fixed within a
+    `(vocabulary, seed)` group, and all runs in a group are produced by one process --
+    but a run repeated after an upgrade may read a different order, and `order_digest`
+    is what turns that from a silent difference into a visible one.
     """
 
 
@@ -185,6 +209,14 @@ class TokenStream:
                 f"array of {len(tokens)} tokens holds no complete sequence of {block_size}+1"
             )
         self.order_seed = order_seed
+        # Hash the whole array, not a length: two different corpora of equal length must
+        # not look identical to the nesting audit. Sampled at stride for arrays over ~64M
+        # tokens, which is enough to catch a different corpus or a different slice.
+        flat = np.ascontiguousarray(tokens)
+        probe = flat if flat.size <= (1 << 26) else flat[:: flat.size // (1 << 26) + 1]
+        self.tokens_digest = hashlib.sha256(
+            probe.tobytes() + str(flat.size).encode()
+        ).hexdigest()[:16]
         if order_seed is None:
             self.order = np.arange(self.n_sequences, dtype=np.int64)
         else:
@@ -195,6 +227,28 @@ class TokenStream:
     def available(self) -> int:
         """Sequences not yet consumed."""
         return self.n_sequences - self.cursor
+
+    @property
+    def consumed_order(self) -> np.ndarray:
+        """Sequence indices this run actually read, in consumption order.
+
+        The unigram baseline in `L_u` must be fitted on THIS set. Under permutation the
+        consumed set is scattered, not a prefix, so fitting on `train_tokens[:consumed]`
+        would fit on text the model never read -- and on a set identical across seeds while
+        the model's set is not, silently removing a real component of seed variance from
+        the primary metric.
+        """
+        return self.order[: self.cursor]
+
+    def order_digest(self, n: int | None = None) -> str:
+        """Hash of the consumed permutation prefix, for auditing nesting across budgets.
+
+        `stream_sequences` alone cannot detect a different array of the same length or a
+        change in NumPy's permutation algorithm; this can. Runs sharing a
+        `(vocabulary, seed)` must agree on the digest of their COMMON prefix length.
+        """
+        prefix = self.order[: self.cursor if n is None else n]
+        return hashlib.sha256(np.ascontiguousarray(prefix, dtype=np.int64)).hexdigest()[:16]
 
     def next_batch(self, batch: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
         if self.available < batch:
@@ -267,6 +321,12 @@ def train_run(
             remaining_seq -= micro[-1]
         if not micro:
             break
+        # Weight each micro-batch by its SHARE OF SEQUENCES, not by 1/len(micro).
+        # `model.loss` returns a mean over the micro-batch, so equal weights are only
+        # correct when the micro-batches are equal size. On a trimmed final step like
+        # [4, 4, 4, 1] the one-sequence batch would get 1/4 of the gradient instead of
+        # 1/13, over-weighting its tokens more than threefold in the step that ends the run.
+        n_seq_step = sum(micro)
         for b in micro:
             x, y = stream.next_batch(b, dev)
             if dev.type == "cuda":
@@ -274,8 +334,9 @@ def train_run(
                     loss = model.loss(x, y, chunk_size=cfg.chunk_size)
             else:
                 loss = model.loss(x, y, chunk_size=cfg.chunk_size)
-            (loss / len(micro)).backward()
-            step_loss += loss.item() / len(micro)
+            w = b / n_seq_step
+            (loss * w).backward()
+            step_loss += loss.item() * w
             consumed += x.numel()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
@@ -315,6 +376,10 @@ def train_run(
         seed=cfg.seed,
         order_seed=stream.order_seed,
         stream_sequences=stream.n_sequences,
+        sequences_consumed=stream.cursor,
+        tokens_digest=stream.tokens_digest,
+        order_digest=stream.order_digest(),
+        numpy_version=np.__version__,
     )
 
 

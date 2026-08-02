@@ -1,5 +1,27 @@
 {
-  "pilot_C": 1.03084e+16,
+  "pilot_C": 1.0308446911162678e+16,
+  "vocab_grid": [
+    768,
+    1536,
+    3200,
+    6272,
+    12672
+  ],
+  "v_run": 3200,
+  "sensitivity": [
+    {
+      "C_label": "exact",
+      "C": 1.0308446911162678e+16,
+      "worst_old_overshoot_pct_mb4_ga4": 0.012902243920841251
+    },
+    {
+      "C_label": "rounded_1.03084e16",
+      "C": 1.03084e+16,
+      "worst_old_overshoot_pct_mb4_ga4": 0.013357686636074239
+    }
+  ],
+  "sensitivity_note": "The per-cell overshoot depends on T_target mod tokens_per_step, so it is chaotically sensitive to C: rounding C by 4.6e-06 relative moves the worst cell from +0.0129% to +0.0134%. The STABLE quantity is the bound (tokens_per_step-1)/T_target, which is what any claim should rest on.",
+  "worst_old_bound_pct": 0.09549977484462298,
   "arch": {
     "target_nnv": 8000000,
     "d": 320,
@@ -13,157 +35,157 @@
       "arm": "C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 197279380,
+      "target_tokens": 197280278,
       "tokens_per_step": 32768,
       "old_tokens": 197296128,
-      "new_tokens": 197277696,
-      "old_err_pct": 0.00848948329014416,
-      "new_err_pct": -0.0008536117662170269
+      "new_tokens": 197279744,
+      "old_err_pct": 0.00803425469625504,
+      "new_err_pct": -0.00027068088377288276
     },
     {
       "V": 768,
       "arm": "C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 197279380,
+      "target_tokens": 197280278,
       "tokens_per_step": 131072,
       "old_tokens": 197394432,
-      "new_tokens": 197277696,
-      "old_err_pct": 0.05831932359073716,
-      "new_err_pct": -0.0008536117662170269
+      "new_tokens": 197279744,
+      "old_err_pct": 0.057863868176422584,
+      "new_err_pct": -0.00027068088377288276
     },
     {
       "V": 1536,
       "arm": "C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 191865001,
+      "target_tokens": 191865874,
       "tokens_per_step": 32768,
       "old_tokens": 191889408,
       "new_tokens": 191864832,
-      "old_err_pct": 0.012720923499747617,
-      "new_err_pct": -8.808276606946152e-05
+      "old_err_pct": 0.012265860264447027,
+      "new_err_pct": -0.000543087719705694
     },
     {
       "V": 1536,
       "arm": "C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 191865001,
+      "target_tokens": 191865874,
       "tokens_per_step": 131072,
       "old_tokens": 191889408,
       "new_tokens": 191864832,
-      "old_err_pct": 0.012720923499747617,
-      "new_err_pct": -8.808276606946152e-05
+      "old_err_pct": 0.012265860264447027,
+      "new_err_pct": -0.000543087719705694
     },
     {
       "V": 3200,
       "arm": "C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 181096176,
+      "target_tokens": 181097000,
       "tokens_per_step": 32768,
       "old_tokens": 181108736,
-      "new_tokens": 181094400,
-      "old_err_pct": 0.006935541256265952,
-      "new_err_pct": -0.0009806943687204086
+      "new_tokens": 181096448,
+      "old_err_pct": 0.006480504922776192,
+      "new_err_pct": -0.0003048090249976532
     },
     {
       "V": 3200,
       "arm": "C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 181096176,
+      "target_tokens": 181097000,
       "tokens_per_step": 131072,
       "old_tokens": 181141504,
-      "new_tokens": 181094400,
-      "old_err_pct": 0.025029794113377635,
-      "new_err_pct": -0.0009806943687204086
+      "new_tokens": 181096448,
+      "old_err_pct": 0.02457467545017311,
+      "new_err_pct": -0.0003048090249976532
     },
     {
       "V": 6272,
       "arm": "C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 164092983,
+      "target_tokens": 164093730,
       "tokens_per_step": 32768,
       "old_tokens": 164102144,
       "new_tokens": 164091904,
-      "old_err_pct": 0.005582810326508599,
-      "new_err_pct": -0.0006575540161884924
+      "old_err_pct": 0.005127557280829682,
+      "new_err_pct": -0.001112778654004635
     },
     {
       "V": 6272,
       "arm": "C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 164092983,
+      "target_tokens": 164093730,
       "tokens_per_step": 131072,
       "old_tokens": 164102144,
       "new_tokens": 164091904,
-      "old_err_pct": 0.005582810326508599,
-      "new_err_pct": -0.0006575540161884924
+      "old_err_pct": 0.005127557280829682,
+      "new_err_pct": -0.001112778654004635
     },
     {
       "V": 12672,
       "arm": "C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 137246819,
+      "target_tokens": 137247444,
       "tokens_per_step": 32768,
       "old_tokens": 137265152,
       "new_tokens": 137246720,
-      "old_err_pct": 0.013357686636074239,
-      "new_err_pct": -7.213281934060709e-05
+      "old_err_pct": 0.012902243920841251,
+      "new_err_pct": -0.0005275143776083728
     },
     {
       "V": 12672,
       "arm": "C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 137246819,
+      "target_tokens": 137247444,
       "tokens_per_step": 131072,
       "old_tokens": 137363456,
       "new_tokens": 137246720,
-      "old_err_pct": 0.08498339039828676,
-      "new_err_pct": -7.213281934060709e-05
+      "old_err_pct": 0.08452762151257258,
+      "new_err_pct": -0.0005275143776083728
     },
     {
       "V": 3200,
       "arm": "1.1C",
       "micro_batch": 4,
       "grad_accum": 4,
-      "target_tokens": 199205793,
+      "target_tokens": 199206700,
       "tokens_per_step": 32768,
       "old_tokens": 199229440,
       "new_tokens": 199204864,
-      "old_err_pct": 0.011870638721836769,
-      "new_err_pct": -0.00046635189971608906
+      "old_err_pct": 0.011415278702975352,
+      "new_err_pct": -0.0009216557475225482
     },
     {
       "V": 3200,
       "arm": "1.1C",
       "micro_batch": 8,
       "grad_accum": 8,
-      "target_tokens": 199205793,
+      "target_tokens": 199206700,
       "tokens_per_step": 131072,
       "old_tokens": 199229440,
       "new_tokens": 199204864,
-      "old_err_pct": 0.011870638721836769,
-      "new_err_pct": -0.00046635189971608906
+      "old_err_pct": 0.011415278702975352,
+      "new_err_pct": -0.0009216557475225482
     }
   ],
   "worst_by_batch_shape": {
     "mb4_ga4": {
-      "worst_old_overshoot_pct": 0.013357686636074239,
-      "worst_new_undershoot_pct": -0.0009806943687204086
+      "worst_old_overshoot_pct": 0.012902243920841251,
+      "worst_new_undershoot_pct": -0.001112778654004635
     },
     "mb8_ga8": {
-      "worst_old_overshoot_pct": 0.08498339039828676,
-      "worst_new_undershoot_pct": -0.0009806943687204086
+      "worst_old_overshoot_pct": 0.08452762151257258,
+      "worst_new_undershoot_pct": -0.001112778654004635
     }
   },
-  "worst_old_overshoot_pct": 0.08498339039828676,
-  "worst_new_undershoot_pct": -0.0009806943687204086,
+  "worst_old_overshoot_pct": 0.08452762151257258,
+  "worst_new_undershoot_pct": -0.001112778654004635,
   "new_never_exceeds_target": true
 }
