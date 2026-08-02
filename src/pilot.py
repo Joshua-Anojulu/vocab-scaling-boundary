@@ -291,9 +291,14 @@ def main() -> None:
     ga = grad_accum_for(args.micro_batch)
     print(f"\nrecipe: {GLOBAL_BATCH_SEQUENCES} sequences per optimizer step "
           f"(micro_batch={args.micro_batch} x grad_accum={ga})")
-    steps = [c.target_tokens // T.BLOCK_SIZE // GLOBAL_BATCH_SEQUENCES for c in cells]
-    print(f"optimizer steps per run: {min(steps)}-{max(steps)}  "
-          f"(Tao at 33M nnv: 57-1144, median 601)")
+    # Actual UPDATES via total_steps, not floored whole batches -- the distinction that
+    # made A7 first report 130-189 where the truth is 131-190.
+    steps = [T.TrainConfig(target_tokens=c.target_tokens, micro_batch=args.micro_batch,
+                           block_size=T.BLOCK_SIZE, grad_accum=ga).total_steps
+             for c in cells]
+    print(f"optimizer updates per run: {min(steps)}-{max(steps)}  "
+          f"(Tao at 33M nnv: 57-1144 nominal, median 601 -- this is the LOWER TAIL, "
+          f"~10-15% of their evaluations fall below it)")
     total = sum(c.target_tokens for c in cells)
     print(f"\nper seed: {total:,} tokens   x{len(PILOT_SEEDS)} seeds = "
           f"{total * len(PILOT_SEEDS):,}   ({len(cells) * len(PILOT_SEEDS)} runs)")
