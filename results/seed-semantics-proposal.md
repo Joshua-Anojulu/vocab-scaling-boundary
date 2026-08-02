@@ -159,19 +159,27 @@ trimmed." Nothing trimmed it, and the loop consumed full batches every step, so 
 **overshot** its token budget by up to `tokens_per_step - 1`.
 
 This matters for the same reason P4 does. IsoFLOP here is enforced on exact token counts, so
-an overshoot is a direct, `V`-dependent perturbation of `C`. Measured across the six pilot
-configurations at `micro_batch=4, grad_accum=4` the overshoot reaches **+0.0129%**; at the
-larger effective batch the VRAM pilot may select, it is larger. Converted through the
-IsoFLOP slope (`dL_u/d(lnC)` about -1.08 from Tao's own points), 0.0129% is roughly 1.4e-4
-nats — an order below the P4 metric-side spread, but of the same character, and free to
-remove.
+an overshoot is a direct, `V`-dependent perturbation of `C`. Across the six pilot
+configurations the overshoot reaches **+0.0134%** at `micro_batch=4, grad_accum=4` (worst
+cell `V=12672`), and **+0.0850%** at `8/8` — the larger effective batch the VRAM pilot may
+select. Converted through the IsoFLOP slope (`dL_u/d(lnC)` about -1.08 from Tao's own
+points), +0.0134% is roughly 1.4e-4 nats: an order below the P4 metric-side spread, but of
+the same character, and free to remove.
 
 **Fixed.** The budget is now the largest whole number of sequences that does not exceed
 `T_target`, and the final step is genuinely trimmed — with gradients scaled by the
 micro-batches actually taken, so a short final step does not silently carry less weight than
-a full one. The error becomes an **undershoot of at most one sequence**: -0.0011% worst case
-across the six configurations, always conservative, with `consumed_tokens` reported exactly
-rather than assumed equal to target.
+a full one. The error becomes an **undershoot of at most one sequence**: -0.0010% worst case
+across the six configurations, at both batch shapes, always conservative, with
+`consumed_tokens` reported exactly rather than assumed equal to target.
+
+**Both figures are re-derivable, not quoted.** `scripts/budget_convention_error.py` emits
+`results/budget_convention_error.json` with per-cell `target_tokens`, `old_tokens`,
+`new_tokens` and both error columns. An earlier draft of this section said **+0.0129%** and
+**-0.0011%**; neither reproduces under any rounding convention, and both were rounded
+printed values quoted back as measurements. That is the fourth instance of this specific
+failure in this project — after the 9.0×/8.7× and 37×/36.6× corrections — which is why the
+numbers now live in an artifact that regenerates rather than in prose.
 
 Two smaller defects travelled with it, both artifacts of the same assumption that every step
 is full width. The throughput window added `cfg.tokens_per_step` per step regardless of

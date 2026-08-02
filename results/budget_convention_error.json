@@ -1,0 +1,169 @@
+{
+  "pilot_C": 1.03084e+16,
+  "arch": {
+    "target_nnv": 8000000,
+    "d": 320,
+    "n_layer": 7,
+    "nnv": 8463040
+  },
+  "block_size": 2048,
+  "cells": [
+    {
+      "V": 768,
+      "arm": "C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 197279380,
+      "tokens_per_step": 32768,
+      "old_tokens": 197296128,
+      "new_tokens": 197277696,
+      "old_err_pct": 0.00848948329014416,
+      "new_err_pct": -0.0008536117662170269
+    },
+    {
+      "V": 768,
+      "arm": "C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 197279380,
+      "tokens_per_step": 131072,
+      "old_tokens": 197394432,
+      "new_tokens": 197277696,
+      "old_err_pct": 0.05831932359073716,
+      "new_err_pct": -0.0008536117662170269
+    },
+    {
+      "V": 1536,
+      "arm": "C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 191865001,
+      "tokens_per_step": 32768,
+      "old_tokens": 191889408,
+      "new_tokens": 191864832,
+      "old_err_pct": 0.012720923499747617,
+      "new_err_pct": -8.808276606946152e-05
+    },
+    {
+      "V": 1536,
+      "arm": "C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 191865001,
+      "tokens_per_step": 131072,
+      "old_tokens": 191889408,
+      "new_tokens": 191864832,
+      "old_err_pct": 0.012720923499747617,
+      "new_err_pct": -8.808276606946152e-05
+    },
+    {
+      "V": 3200,
+      "arm": "C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 181096176,
+      "tokens_per_step": 32768,
+      "old_tokens": 181108736,
+      "new_tokens": 181094400,
+      "old_err_pct": 0.006935541256265952,
+      "new_err_pct": -0.0009806943687204086
+    },
+    {
+      "V": 3200,
+      "arm": "C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 181096176,
+      "tokens_per_step": 131072,
+      "old_tokens": 181141504,
+      "new_tokens": 181094400,
+      "old_err_pct": 0.025029794113377635,
+      "new_err_pct": -0.0009806943687204086
+    },
+    {
+      "V": 6272,
+      "arm": "C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 164092983,
+      "tokens_per_step": 32768,
+      "old_tokens": 164102144,
+      "new_tokens": 164091904,
+      "old_err_pct": 0.005582810326508599,
+      "new_err_pct": -0.0006575540161884924
+    },
+    {
+      "V": 6272,
+      "arm": "C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 164092983,
+      "tokens_per_step": 131072,
+      "old_tokens": 164102144,
+      "new_tokens": 164091904,
+      "old_err_pct": 0.005582810326508599,
+      "new_err_pct": -0.0006575540161884924
+    },
+    {
+      "V": 12672,
+      "arm": "C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 137246819,
+      "tokens_per_step": 32768,
+      "old_tokens": 137265152,
+      "new_tokens": 137246720,
+      "old_err_pct": 0.013357686636074239,
+      "new_err_pct": -7.213281934060709e-05
+    },
+    {
+      "V": 12672,
+      "arm": "C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 137246819,
+      "tokens_per_step": 131072,
+      "old_tokens": 137363456,
+      "new_tokens": 137246720,
+      "old_err_pct": 0.08498339039828676,
+      "new_err_pct": -7.213281934060709e-05
+    },
+    {
+      "V": 3200,
+      "arm": "1.1C",
+      "micro_batch": 4,
+      "grad_accum": 4,
+      "target_tokens": 199205793,
+      "tokens_per_step": 32768,
+      "old_tokens": 199229440,
+      "new_tokens": 199204864,
+      "old_err_pct": 0.011870638721836769,
+      "new_err_pct": -0.00046635189971608906
+    },
+    {
+      "V": 3200,
+      "arm": "1.1C",
+      "micro_batch": 8,
+      "grad_accum": 8,
+      "target_tokens": 199205793,
+      "tokens_per_step": 131072,
+      "old_tokens": 199229440,
+      "new_tokens": 199204864,
+      "old_err_pct": 0.011870638721836769,
+      "new_err_pct": -0.00046635189971608906
+    }
+  ],
+  "worst_by_batch_shape": {
+    "mb4_ga4": {
+      "worst_old_overshoot_pct": 0.013357686636074239,
+      "worst_new_undershoot_pct": -0.0009806943687204086
+    },
+    "mb8_ga8": {
+      "worst_old_overshoot_pct": 0.08498339039828676,
+      "worst_new_undershoot_pct": -0.0009806943687204086
+    }
+  },
+  "worst_old_overshoot_pct": 0.08498339039828676,
+  "worst_new_undershoot_pct": -0.0009806943687204086,
+  "new_never_exceeds_target": true
+}
