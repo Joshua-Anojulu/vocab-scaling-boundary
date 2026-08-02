@@ -284,6 +284,10 @@ established that the round-2 objection to reuse was wrong on the facts — Tao's
 linear warmup then constant (`get_lr` returns the base rate unchanged after warmup;
 `min_lr = 4e-5` is defined and never referenced), so under a constant rate a checkpoint at
 step *k* does have the learning-rate history of a run trained to step *k*. Reuse is sound.
+— ⚠️ **WITHDRAWN under A7 (2026-08-02).** The equivalence holds only if both share a warmup
+LENGTH, and they do not: warmup is a fraction of run length, so cumulative learning-rate
+exposure differs by up to **1.69×** at this study's scale. The sentence is preserved as the
+record of what was argued; it is not a live claim.
 
 It is declined anyway, for two reasons that are about accuracy rather than cost:
 
@@ -292,8 +296,11 @@ It is declined anyway, for two reasons that are about accuracy rather than cost:
    preregistration exists to remove, even when the change is defensible on its merits.
 2. Reuse introduces a dependence between the `C` and `1.1·C` observations that the M2
    bootstrap treats as paired-but-distinct. Independent runs keep the estimator's assumed
-   structure and the actual data-generating process aligned. Soundness of the learning-rate
-   argument does not by itself establish that the induced correlation is harmless.
+   structure and the actual data-generating process aligned. The learning-rate argument
+   above is **withdrawn under A7** and is not relied on here; and review later established
+   that this dependence objection is itself weaker than stated, since a seed-level paired
+   bootstrap can preserve within-seed covariance. **A5's conclusion now rests on reason 1
+   alone**, plus `PLAN.md` prescribing separate runs.
 
 **Trigger, recorded explicitly:** the reuse question was reopened by *reading the reference
 schedule* in `reference/tinyllama_pretrain.py`, not by the measured budget. The budget
@@ -488,7 +495,9 @@ repository.
 ### A7 — correction and expansion, before adoption (2026-08-02)
 
 Round 1 of review returned five blocking findings. Two changed the amendment's substance and
-one changed a training constant. A7 remains **PROPOSED**; nothing below has been run.
+one changed a training constant. *(State as of round 1: A7 proposed, no run had been made.
+The corrected warmup check recorded further down HAS since been run; A7 itself remains
+proposed and no pilot or confirmatory run has used it.)*
 
 **The LR-coupling claim is withdrawn.** A7 argued the batch is not free because
 `learning_rate = 4e-4` is "tuned to" a 512-sequence batch. The reference pairs the two but
@@ -670,7 +679,7 @@ was written to answer it.
 `warmup_fraction = real_warmup / real_total`, but `warmup_steps` is
 `round(total_steps × warmup_fraction)` and `total_steps` there is the probe's 30 — not the
 real 131–190. The actual warmup exercised was **3 steps**, while the amendment cited the
-result as evidence about 13–19. The numbers were also written to `runs/diagnostics/`, which
+result as evidence about 13–19. That citation is withdrawn: it named `runs/diagnostics/`, which
 `.gitignore` excludes, so the table cited evidence no reader could open — the same failure as
 the test that silently skipped without `exp_data.csv`, two rounds after that one was fixed.
 
@@ -688,8 +697,11 @@ assertion, `results/warmup_stability.json`:
 | 768 | 189 | 19 | 6.644 | 5.737 | **5.137** | yes | no |
 | 12672 | 131 | 13 | 9.447 | 8.623 | **7.514** | yes | no |
 
-No NaN, loss already below chance by the end of warmup, and falling thereafter at both
-extremes. **A 13-19 step warmup does not destabilise training at this scale.**
+No NaN, loss already below chance by the end of warmup, and every post-warmup point below
+chance at both extremes. **This two-cell pre-flight check showed no early instability under a
+13-19 step warmup.** That is deliberately narrower than "does not destabilise training": two
+vocabularies, thirty steps, one seed cannot support the general claim, and an earlier draft
+of this line made it anyway.
 
 **Scope, stated because the check is narrow.** Thirty optimizer steps: this establishes
 early-trajectory stability through warmup and a little past it. It says nothing about whether

@@ -48,6 +48,15 @@ WITHDRAWN = [
      "withdrawn in the seed-semantics track; the claim is 'wrong variance component'"),
     (r"2000 of 25000 steps == 8%",
      "the study uses 10%; and warmup is a study choice, not a transcription"),
+    # Restatements of the same withdrawn claim in different words. The registry missed
+    # these for two rounds: a literal-phrase list catches the sentence it was built from
+    # and not its paraphrases, which is how A5's version survived.
+    (r"does have the learning-rate history of a run trained to",
+     "A5's restatement of the refuted checkpoint LR-history equivalence"),
+    (r"[Rr]euse is sound",
+     "conclusion of the refuted equivalence"),
+    (r"[Ss]oundness of the learning-rate argument",
+     "treats the withdrawn LR argument as sound"),
 ]
 
 WITHDRAWAL_MARKERS = re.compile(
@@ -118,10 +127,13 @@ def test_every_artifact_cited_by_the_amendments_is_readable() -> None:
     lines = text.splitlines()
     # A path may be NAMED in a withdrawal note precisely because citing it was the mistake;
     # that is the record working as intended, not a live citation.
+    # SAME-LINE marker only. A window -- even a paragraph -- is too permissive here: it was
+    # confirmed to skip live A7 citations of `results/warmup_stability.json` purely because
+    # correction prose nearby matched the marker regex. A path is excused only when the line
+    # naming it says, on that line, that citing it was the mistake.
     cited = set()
-    for i, line in enumerate(lines):
-        window = "\n".join(lines[max(0, i - 6): i + 7])
-        if WITHDRAWAL_MARKERS.search(window):
+    for line in lines:
+        if WITHDRAWAL_MARKERS.search(line):
             continue
         cited.update(re.findall(r"`((?:results|runs|data|scripts|src|tests)/[\w./-]+)`", line))
     missing, ignored = [], []
@@ -146,12 +158,32 @@ def test_headline_figures_match_their_artifacts() -> None:
         pytest.approx(0.0129, abs=5e-5), "the +0.0129% figure drifted from its artifact"
     assert budget["worst_new_undershoot_pct"] == pytest.approx(-0.0011, abs=5e-5)
 
+    # The stability artifact must BIND the table in AMENDMENTS.md, not merely exist with
+    # some true booleans. As first written this check would have passed on an empty file.
     stability = json.loads((ROOT / "results" / "warmup_stability.json").read_text())
-    for row in stability:
+    by_v = {r["vocab_size"]: r for r in stability}
+    assert set(by_v) == {768, 12672}, "the cited table has two rows; the artifact must too"
+
+    expected = {                       # exactly the figures AMENDMENTS.md prints
+        768:   dict(total=189, warmup=19, chance=6.644, warm_end=5.737, last=5.137),
+        12672: dict(total=131, warmup=13, chance=9.447, warm_end=8.623, last=7.514),
+    }
+    for v, e in expected.items():
+        r = by_v[v]
+        assert r["probe_steps"] == 30, r
+        assert len(r["curve"]) == 30, "curve length must match the probe"
+        assert r["real_total_steps"] == e["total"], r
         # The bug that shipped once: the probe must exercise the REAL warmup length.
-        assert row["real_warmup_steps"] >= 13, row
-        assert row["sustained_below_chance"], row
-        assert not row["spike_after_warmup"], row
+        assert r["real_warmup_steps"] == e["warmup"], r
+        assert r["chance_loss"] == pytest.approx(e["chance"], abs=5e-4)
+        assert r["loss_at_warmup_end"] == pytest.approx(e["warm_end"], abs=5e-4)
+        assert r["last_loss"] == pytest.approx(e["last"], abs=5e-4)
+        assert r["all_finite"] and r["sustained_below_chance"]
+        assert not r["spike_after_warmup"]
+        # Stronger than the recorded booleans: EVERY post-warmup point below chance, so a
+        # transient excursion that later recovers cannot pass.
+        post = r["curve"][r["real_warmup_steps"]:]
+        assert all(x < r["chance_loss"] for x in post), "post-warmup excursion above chance"
 
 
 def test_plan_is_still_untouched() -> None:
