@@ -670,3 +670,20 @@ Both are corrected: the probe now takes the fraction against its own step count 
 loss *sustained* below chance rather than a transient dip, and output is committed to
 `results/warmup_stability.json`. The numeric claim is withheld until that corrected run
 completes; **no stability claim is made here on the strength of the invalid check.**
+
+**The corrected check, and its result.** Re-run with the real warmup lengths verified by
+assertion, `results/warmup_stability.json`:
+
+| V | real run | real warmup | chance `ln V` | at warmup end | last (30 steps) | sustained below chance | spike |
+|---|---|---|---|---|---|---|---|
+| 768 | 189 | 19 | 6.644 | 5.737 | **5.137** | yes | no |
+| 12672 | 131 | 13 | 9.447 | 8.623 | **7.514** | yes | no |
+
+No NaN, loss already below chance by the end of warmup, and falling thereafter at both
+extremes. **A 13-19 step warmup does not destabilise training at this scale.**
+
+**Scope, stated because the check is narrow.** Thirty optimizer steps: this establishes
+early-trajectory stability through warmup and a little past it. It says nothing about whether
+the full 131-190 step runs converge well, and nothing about `L_u`. It is a pre-flight check
+against wasting an 18-run pilot, not evidence about the study's results. It produces no
+metric that enters inference.
