@@ -89,7 +89,7 @@ Reading `reference/tinyllama_pretrain.py` shows Tao's schedule is **linear warmu
 constant** — `get_lr` returns the base rate unchanged after warmup, and `min_lr = 4e-5`
 is defined and referenced nowhere. Under a constant rate, a checkpoint at step *k* has
 exactly the learning-rate history of a run trained to step *k*, so the objection does not
-apply and reuse is sound.
+apply and reuse is sound. — ⚠️ **This sentence is WITHDRAWN; see the note below.**
 
 > ⚠️ **The sentence above is WITHDRAWN** (2026-08-02, A7 round 2). The equivalence holds only
 > if both share a warmup LENGTH. Warmup is a fraction of run length, so a dedicated *k*-step
