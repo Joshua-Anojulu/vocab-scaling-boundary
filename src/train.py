@@ -4,7 +4,13 @@ Hyperparameters transcribed from `reference/tinyllama_pretrain.py`, not chosen:
 
     learning_rate  4e-4        weight_decay 1e-1        betas (0.9, 0.95)
     grad_clip      1.0         block_size   2048        global_batch 512 sequences
-    warmup         2000 of 25000 steps == 8% of training
+    warmup         10% of the run  -- NOT transcribed; see WARMUP_FRACTION
+
+Warmup is the one line above that is not a transcription. The module defaults are
+`warmup_steps=2000, max_step=25000` (8%); the upstream experiment script passes
+`5480/54800` (10%); and **neither is provably what produced the released data.** `PLAN.md`
+did not fix it either. It is a study choice, recorded in amendment A7, and this header says
+so rather than presenting it alongside the values that really were transcribed.
 
 **The schedule is linear warmup then CONSTANT.** Their `get_lr` returns `learning_rate`
 unchanged after warmup; `min_lr = 4e-5` is defined in the file and referenced nowhere,

@@ -47,7 +47,12 @@ def test_no_min_lr_floor_is_applied() -> None:
 
 
 def test_warmup_is_ten_percent_from_the_run_script_not_the_module_defaults() -> None:
-    """run.sh passes 5480/54800 = 10%; the 2000/25000 defaults were never the experiment."""
+    """The upstream experiment script passes 5480/54800 = 10%; the module defaults are 8%.
+
+    Neither is provably what generated the released data -- an earlier version of this
+    docstring asserted "the defaults were never the experiment", which is not established.
+    10% is a study choice under A7, pinned here so it cannot drift silently.
+    """
     assert T.WARMUP_FRACTION == pytest.approx(0.10)
     cfg = T.TrainConfig(target_tokens=64 * 100 * 25, micro_batch=1, block_size=64)
     assert cfg.warmup_steps == pytest.approx(cfg.total_steps * 0.10, abs=1)
