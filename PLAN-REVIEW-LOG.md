@@ -1510,3 +1510,43 @@ witness. The author independently found three enforcement gaps and one precision
 its own making.
 
 A confirmation round has not yet been run against these fixes.
+
+## Round 3 — VERDICT: CHANGES REQUIRED (3 blocking, 1 advisory)
+
+All four accepted. Two had already been applied while the round was still running, from
+reading the reviewer's own priority list back critically rather than waiting for the verdict.
+
+**Both blocking findings say the same thing: the witness was weaker than its docstring
+claimed.** This is the third rejected version of it, and the pattern is worth naming — each
+version was written to satisfy the *previous* objection rather than to be sufficient.
+
+*Rejected version 2: a strided sample.* `tokens_digest` hashed a stride-sampled probe for
+arrays over 2^26 elements. A sample can miss exactly the localised difference an audit
+exists to catch, so it is not a witness. Now a full content digest, streamed in 2^24-element
+chunks to keep peak memory flat rather than materialising ~360 MB, at under a second against
+a multi-hour run.
+
+*Rejected version 3: the consumed prefix.* `order_digest` hashed each run's consumed prefix.
+The reviewer's objection is decisive and the author had the audit rule wrong in A6 as
+written: a `C` arm and a `1.1·C` arm **necessarily** consume different amounts, so their
+prefix digests differ even when nesting is perfect, and the audit cannot separate correct
+nesting from a broken permutation. `order_digest` now covers the WHOLE permutation, which
+makes nesting decidable from artifacts alone: two runs are nested iff they agree on
+`tokens_digest` and `order_digest`, with `sequences_consumed` recording how far each read.
+`consumed_order_digest` is retained as description, not as the witness. A6's audit rule is
+restated accordingly and a test now pins the unequal-length case the old witness failed.
+
+**Finding 3 — the evaluation guard — was the same unenforced-contract failure one level
+down.** `evaluate_run(train_order=None)` still fell back silently to the prefix baseline.
+Silent defaults are what this entire track is about, and here the failure would land on the
+primary metric and leave no trace in any artifact. It now raises; a genuinely sequential run
+declares `sequential_order_ok=True`.
+
+**The advisory was the author's own stale text.** The `TrainConfig.target_sequences`
+docstring still carried `+0.0134% / +0.0850% / -0.0010%` from the reverted precision error —
+the prose was corrected at the time and the docstring was not. Now consistent with
+`results/budget_convention_error.json`.
+
+157 tests pass. `PLAN.md` untouched.
+
+**Tally across the seed-semantics track: 3 rounds, 15 findings, 0 rejected.**

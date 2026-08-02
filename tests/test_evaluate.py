@@ -145,6 +145,23 @@ def test_consumed_target_blocks_are_targets_not_inputs():
     assert [b.tolist() for b in blocks] == [[1, 2, 3, 4], [9, 10, 11, 12]]
 
 
+def test_evaluate_run_refuses_to_guess_the_training_order():
+    """Silently defaulting to a prefix fit would rebuild the defect A6 exists to fix."""
+    V, block = 8, 16
+    rng = np.random.default_rng(0)
+    ev = rng.integers(0, V, size=block * 4 + 1, dtype=np.uint16)
+    train = rng.integers(0, V, size=block * 8 + 1, dtype=np.uint16)
+    model = M.build(M.ModelConfig(vocab_size=V, d=32, n_layer=1, n_head=2, d_ffn=64,
+                                  block_size=block))
+
+    class _Tok:
+        def decode(self, ids):
+            return "x" * len(ids)
+
+    with pytest.raises(ValueError, match="train_order is required"):
+        E.evaluate_run(model, ev, train, V, _Tok(), block_size=block, batch=2, device="cpu")
+
+
 def test_unigram_rejects_out_of_range_ids():
     with pytest.raises(ValueError, match="outside"):
         E.unigram_logp(np.array([0, 5], dtype=np.uint16), vocab_size=2)
@@ -215,7 +232,8 @@ def test_evaluate_run_matches_a_hand_computed_unigram_term():
         def decode(self, ids, skip_special_tokens=True):
             return "x" * len(ids)
 
-    res = E.evaluate_run(model, ev, train, V, _Tok(), block_size=16, batch=2, device="cpu")
+    res = E.evaluate_run(model, ev, train, V, _Tok(), block_size=16, batch=2,
+                         device="cpu", sequential_order_ok=True)
 
     plan = E.plan_blocks(len(ev), 16, 2)
     targets = E.scored_targets(ev, plan)
@@ -239,7 +257,8 @@ def test_evaluate_run_model_term_matches_direct_computation():
         def decode(self, ids, skip_special_tokens=True):
             return "x" * len(ids)
 
-    res = E.evaluate_run(model, ev, train, V, _Tok(), block_size=16, batch=2, device="cpu")
+    res = E.evaluate_run(model, ev, train, V, _Tok(), block_size=16, batch=2,
+                         device="cpu", sequential_order_ok=True)
     plan = E.plan_blocks(len(ev), 16, 2)
     direct = E.model_nll_nats(model, ev, plan, device="cpu")
     assert math.isclose(res.model_nll_nats, direct, rel_tol=1e-6)

@@ -373,8 +373,17 @@ satisfied it by accident. The same failure mode is closed structurally:
 * `train_run` **refuses** a stream whose `order_seed` is not the run's `seed`; corpus order
   requires an explicit `unseeded_order_ok=True`, which no confirmatory run sets.
 * `TrainResult` records `order_seed`, `stream_sequences`, `sequences_consumed`,
-  `tokens_digest`, `order_digest` and `numpy_version`, so nesting and matched-seed pairing
-  are auditable from the artifacts without trusting the runner.
+  `tokens_digest`, `order_digest`, `consumed_order_digest` and `numpy_version`, so nesting
+  and matched-seed pairing are auditable from the artifacts without trusting the runner.
+
+**The audit rule, stated so it is checkable rather than merely asserted:** two runs sharing
+a `(vocabulary, seed)` are correctly nested **iff** they agree on `order_seed`,
+`stream_sequences`, `tokens_digest` and `order_digest`, with `sequences_consumed` recording
+how far each read. `tokens_digest` is a full content digest of the token array and
+`order_digest` covers the **whole** permutation, not the consumed prefix — a `C` arm and a
+`1.1·C` arm consume different amounts by construction, so prefix digests differ even when
+nesting is perfect and could not decide the question. `consumed_order_digest` is a
+descriptive record of what each run read, not the nesting witness.
 
 ### Reporting obligation
 

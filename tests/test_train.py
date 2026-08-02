@@ -209,9 +209,44 @@ def test_run_records_a_witness_that_distinguishes_equal_length_corpora() -> None
     sa, sb = T.TokenStream(a, block, order_seed=2), T.TokenStream(b, block, order_seed=2)
     assert sa.n_sequences == sb.n_sequences        # the weak witness cannot separate them
     assert sa.tokens_digest != sb.tokens_digest    # the strong one can
-    # order_digest agrees over a common prefix, which is what nesting requires.
-    sa.next_batch(4, torch.device("cpu"))
-    assert sa.order_digest(4) == sb.order_digest(4)
+
+
+def test_tokens_digest_catches_a_single_changed_token_anywhere() -> None:
+    """A strided sample could miss this; a full content digest cannot."""
+    block, n = 8, 4000
+    base = np.zeros(block * n + 1, dtype=np.uint16)
+    d0 = T.TokenStream(base, block).tokens_digest
+    for pos in (0, 1, 17, len(base) // 2, len(base) - 2, len(base) - 1):
+        probe = base.copy()
+        probe[pos] = 1
+        assert T.TokenStream(probe, block).tokens_digest != d0, f"missed a change at {pos}"
+
+
+def test_nesting_is_decidable_between_runs_of_different_lengths() -> None:
+    """The audit rule, which a consumed-prefix digest could not support.
+
+    A C run and a 1.1C run consume different amounts by construction, so their consumed
+    prefixes always differ. Nesting has to be decidable anyway, from the whole-permutation
+    digest plus how far each read.
+    """
+    block, dev = 8, torch.device("cpu")
+    toks = np.arange(block * 30 + 1, dtype=np.uint16)
+
+    short = T.TokenStream(toks, block, order_seed=11)
+    long = T.TokenStream(toks, block, order_seed=11)
+    short.next_batch(6, dev)
+    long.next_batch(6, dev)
+    long.next_batch(3, dev)                        # the 1.1C arm reads further
+
+    # Consumed-prefix digests differ despite perfect nesting -- the rejected witness.
+    assert short.order_digest(short.cursor) != long.order_digest(long.cursor)
+    # The audit rule still decides it correctly.
+    assert short.tokens_digest == long.tokens_digest
+    assert short.order_digest() == long.order_digest()
+    assert short.cursor < long.cursor
+    # And a genuinely different permutation is rejected by the same rule.
+    other = T.TokenStream(toks, block, order_seed=12)
+    assert other.order_digest() != short.order_digest()
 
 
 def test_seeds_differing_only_in_order_produce_different_runs() -> None:

@@ -275,13 +275,28 @@ def evaluate_run(
     bytes_cache: Path | None = None,
     alpha: float = 1.0,
     train_order: np.ndarray | None = None,
+    sequential_order_ok: bool = False,
 ) -> EvalResult:
     """Produce `L_u` and BPB for one trained model, both terms over identical positions.
 
     `train_order` is the run's consumed sequence order (`TokenStream.consumed_order`). It
-    must be passed for any seed-permuted run, or the unigram baseline is fitted on a
+    MUST be passed for any seed-permuted run, or the unigram baseline is fitted on a
     contiguous prefix the model never read. See `unigram_logp`.
+
+    Omitting it is refused rather than accepted, for the same reason `train_run` refuses an
+    untied `order_seed`: the defect this whole amendment exists to fix was a contract that
+    lived in prose while the code satisfied it by accident, and a silent default here would
+    rebuild that exactly -- with the failure landing on the primary metric and leaving no
+    trace in any artifact. A genuinely sequential run declares itself with
+    `sequential_order_ok=True`.
     """
+    if train_order is None and not sequential_order_ok:
+        raise ValueError(
+            "train_order is required: without it H_unigram is fitted on a contiguous "
+            "prefix, which is wrong for any seed-permuted run and silently deletes the "
+            "baseline's contribution to seed variance. Pass stream.consumed_order, or set "
+            "sequential_order_ok=True to declare this run sequential."
+        )
     plan = plan_blocks(len(eval_tokens), block_size, batch)
     targets = scored_targets(eval_tokens, plan)
     if len(targets) != plan.n_scored:

@@ -106,8 +106,18 @@ Three guards now close that:
    insufficient — it cannot distinguish a different token array of the same length, a
    different same-length slice, or a change in the permutation algorithm itself. The
    recorded witness is now `order_seed`, `stream_sequences`, `sequences_consumed`,
-   `tokens_digest` (content, not length), `order_digest` (the consumed permutation prefix),
-   and `numpy_version`.
+   `tokens_digest`, `order_digest`, `consumed_order_digest` and `numpy_version`.
+
+   Two further versions of this witness were rejected before it worked. Hashing a strided
+   **sample** of the token array is not a witness at all — a sample can miss precisely the
+   localised difference an audit exists to catch — so `tokens_digest` is a full content
+   digest, streamed in chunks to keep memory flat, costing under a second against a
+   multi-hour run. And hashing each run's **consumed prefix** cannot decide nesting: a `C`
+   arm and a `1.1·C` arm consume different amounts by construction, so their prefix digests
+   differ even when nesting is perfect. `order_digest` therefore covers the whole
+   permutation, which makes the question decidable — two runs are nested iff their array
+   and permutation digests agree, after which reading further is the only difference
+   between them.
 
    On that last field: `np.random.default_rng(seed).permutation(n)` is **not promised stable
    across NumPy versions**, and this design must not claim it is. Nothing here needs
