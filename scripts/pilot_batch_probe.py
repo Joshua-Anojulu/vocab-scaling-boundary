@@ -1,8 +1,9 @@
 """Which MICRO-batch should Stage B.7 run at?
 
 Only the micro-batch. The effective batch is not up for measurement: the reference fixes it
-at 512 sequences per optimizer step and its `learning_rate = 4e-4` is tuned to that, so
-`grad_accum` is derived rather than chosen (see `pilot.GLOBAL_BATCH_SEQUENCES`). What remains
+at 512 sequences per optimizer step and pairs it with `learning_rate = 4e-4`, so `grad_accum`
+is derived rather than chosen (see `pilot.GLOBAL_BATCH_SEQUENCES`). The pairing is what the
+released code shows; how `4e-4` was selected is not evidenced and is not claimed. What remains
 free is how that global batch is split across memory, which is a pure
 throughput-and-VRAM question with no bearing on the optimization regime.
 

@@ -41,16 +41,25 @@ BETA1, BETA2 = 0.9, 0.95
 GRAD_CLIP = 1.0
 BLOCK_SIZE = 2048
 WARMUP_FRACTION = 5480 / 54800
-"""10%, from the reference's own run script rather than its module defaults.
+"""10%, from the upstream experiment script rather than the module defaults.
 
 `tinyllama.py` defaults to `warmup_steps=2000, max_step=25000` (8%), and this constant was
-originally derived from those. But `experiments/light_train/scripts/run.sh` -- the script
-that actually produced the released IsoFLOP data -- passes `warmup_steps=5480,
-max_step=54800`, exactly **10%**. The defaults were never the experiment; the run script
-was. Verified against the upstream repository, not inferred.
+originally derived from those. The upstream single-node experiment script
+`experiments/light_train/scripts/run.sh` instead passes `warmup_steps=5480, max_step=54800`
+-- exactly **10%**.
 
-Expressed as a fraction because their warmup scales with run length: it is 10% of `max_step`
-in the released script, and `max_step` differs per configuration.
+**Provenance is NOT established, and an earlier version of this docstring overclaimed it.**
+It said run.sh "actually produced the released IsoFLOP data". The repository does not show
+that: `exp_data.csv` predates the script in git history, and the script loops over
+`vocab=4096` only. So neither figure is proven to be what generated the released data. 8% is
+a module default that may never have been passed to anything; 10% is the only warmup ratio
+the project is on record as actually passing. 10% is therefore chosen as the
+better-evidenced of two weak options, and the weakness is recorded rather than hidden --
+this study cannot claim to have matched their warmup, only to have matched the one value
+they published a script for.
+
+Expressed as a fraction because the ratio is what carries over: `max_step` differs per
+configuration, so a fixed step count would mean something different in every run.
 """
 
 

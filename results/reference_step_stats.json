@@ -17,9 +17,37 @@
     "q100": 1144.4091796875002
   },
   "artifact_steps_33m": {
-    "first": 60,
-    "last": 1200,
-    "note": "released checkpoint filenames"
+    "steps": [
+      60,
+      120,
+      180,
+      240,
+      300,
+      360,
+      420,
+      480,
+      540,
+      600,
+      660,
+      720,
+      780,
+      840,
+      900,
+      960,
+      1020,
+      1080,
+      1140,
+      1200
+    ],
+    "note": "released checkpoint filenames, step-000060 .. step-001200",
+    "quantiles": {
+      "q00": 60.0,
+      "q10": 174.0,
+      "q25": 345.0,
+      "q50": 630.0,
+      "q75": 915.0,
+      "q100": 1200.0
+    }
   },
   "note": "Rows are 20 in-training evaluations per (vocabulary, scale), from compute_eval_steps(max_steps, evals_per_interval=20) -- NOT separate runs. The step values are therefore checkpoint positions within a run, and the largest is that run's length."
 }

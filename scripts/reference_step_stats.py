@@ -41,7 +41,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV = ROOT / "reference" / "exp_data.csv"
 OUT = ROOT / "results" / "reference_step_stats.json"
 GLOBAL_BATCH = 512
-ARTIFACT_STEPS_33M = {"first": 60, "last": 1200, "note": "released checkpoint filenames"}
+# Released checkpoint filenames for the 33M family, step-000060 .. step-001200 at even
+# spacing -- 20 evaluations, matching compute_eval_steps(max_steps, evals_per_interval=20).
+# Quantiles are recorded, not just the endpoints, because AMENDMENTS.md claims the
+# lower-tail conclusion holds under BOTH conventions and that is only checkable if both
+# distributions are present.
+ARTIFACT_STEPS_33M = [60 * k for k in range(1, 21)]
 
 
 def main() -> None:
@@ -71,7 +76,12 @@ def main() -> None:
         "evals_per_run": 20,
         "runs_in_smallest_family": int(len(sm) // 20),
         "nominal_steps": qs,
-        "artifact_steps_33m": ARTIFACT_STEPS_33M,
+        "artifact_steps_33m": {
+            "steps": ARTIFACT_STEPS_33M,
+            "note": "released checkpoint filenames, step-000060 .. step-001200",
+            "quantiles": {f"q{int(x*100):02d}": float(np.percentile(ARTIFACT_STEPS_33M, x*100))
+                          for x in (0, 0.10, 0.25, 0.50, 0.75, 1.0)},
+        },
         "note": (
             "Rows are 20 in-training evaluations per (vocabulary, scale), from "
             "compute_eval_steps(max_steps, evals_per_interval=20) -- NOT separate runs. "

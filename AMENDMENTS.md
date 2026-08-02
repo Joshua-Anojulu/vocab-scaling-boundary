@@ -405,8 +405,8 @@ the number of sequences per optimizer step.** Neither does A1–A6. It was found
 choosing a batch shape for the Stage B.7 runner, where it presented itself as a throughput
 question and is not one.
 
-The batch size is not free, because the learning rate is coupled to it. The reference sets
-`global_batch_size = 512` sequences and `learning_rate = 4e-4` together
+The batch size is not free, because the released recipe PAIRS it with a learning rate. The
+reference sets `global_batch_size = 512` sequences and `learning_rate = 4e-4` together
 (`reference/tinyllama_pretrain.py:37,36`), and derives the micro-batch split from it:
 `gradient_accumulation_steps = batch_size // micro_batch_size` (`:125`). Choosing a
 different effective batch while keeping `4e-4` would be a different recipe wearing the same
@@ -422,14 +422,16 @@ to land near it.
 ### Why this rather than the alternative, decided on measurement
 
 The obvious objection is that at these budgets a 512-sequence batch yields few optimizer
-steps: **130–189** across the six pilot configurations. That was the author's initial
+updates: **131–190** across the six pilot configurations. That was the author's initial
 concern, and it is answered by Tao's own released data rather than by argument.
 
 At their smallest fitted scale (33M non-vocabulary parameters, 200 released runs) their runs
-span **57 to 1,144 optimizer steps, median 601**. This pilot's 130–189 sits inside that
-range and above their minimum. Recomputed in `tests/test_pilot.py` from
-`reference/exp_data.csv` rather than quoted, so a future change that moves the study outside
-their range fails a test.
+span **57 to 1,144 optimizer steps, median 601** (nominal; see the artifact caveat below).
+This pilot's **131–190 updates** sit in the LOWER TAIL of that distribution — roughly the
+10th–15th percentile, 0.21–0.30× their median — above their minimum but not typical of their
+grid. Recomputed in `tests/test_pilot.py` against the committed
+`results/reference_step_stats.json`, so a future change that moves the study out of the low
+tail fails a test.
 
 **"Inside their range" overstates it, and the precise position is this:** their range spans
 20×, so landing inside it is a weak test. Our step counts sit at the **10th–15th percentile**
@@ -445,9 +447,9 @@ that they are typical of it.
 
 The alternative — a small effective batch of 16 sequences, which is what a
 throughput-first choice would have produced — gives ~6,000 optimizer steps, **10× Tao's
-median at the comparable scale**, at a learning rate tuned for a batch 32× larger. That is
-the departure from the recipe, not this. The initial framing of the decision had it exactly
-backwards.
+median at the comparable scale**, at a learning rate the released recipe pairs with a batch
+32× larger. That is the larger departure from the recipe, not this. The initial framing of
+the decision had it exactly backwards.
 
 ### What this amendment does NOT claim
 
@@ -581,16 +583,64 @@ they did and would also be cheaper, and it is declined anyway, for three reasons
    on the basis of a discovery made while building the runner, is the precise freedom that
    preregistration exists to remove. The discovery is real and is recorded; acting on it is
    a different thing from recording it.
-2. A5's surviving independent ground still holds. Reuse induces a dependence between the `C`
-   and `1.1·C` observations that the M2 bootstrap treats as paired-but-distinct. That
-   objection never rested on the learning-rate argument that has now been withdrawn.
+2. A5's second ground is **weaker than first stated and is demoted, not relied upon.** It
+   held that reuse induces a dependence between the `C` and `1.1·C` observations which the
+   M2 bootstrap treats as paired-but-distinct. Review pointed out that a seed-level paired
+   bootstrap resampling the complete seed vector can preserve within-seed covariance, so
+   reuse changes the data-generating procedure without automatically invalidating the
+   bootstrap — and if it were a problem, it would likely be a fixable one. It is recorded as
+   a consideration, not as a proof, and the decision does not rest on it.
 3. The cheaper option being also the more faithful one is exactly the configuration in which
    a mid-study procedure change is least trustworthy, not most.
 
-**The departure is therefore real and is carried into reporting rather than resolved.** This
-study trains each budget with warmup scaled to that run's length; Tao read checkpoints of a
-longer run whose warmup was scaled to the longer run, so at the low-compute end the two
-procedures put a model at the same token budget through different learning-rate histories.
+**The departure is therefore real and is carried into reporting rather than resolved, and it
+is larger than "the histories differ" suggests.** This study trains each budget with warmup
+scaled to that run's length; Tao read checkpoints of a longer run whose warmup was scaled to
+the longer run. Quantified as cumulative base-learning-rate exposure — the sum of the LR
+multiplier over all updates, which is what a linear warmup actually changes:
+
+| updates | this study (warmup 10% of its own run) | checkpoint of a 1144-step run (warmup 114) | ratio |
+|---|---|---|---|
+| 131 | 125.0 | 74.5 | **1.68×** |
+| 190 | 181.0 | 133.5 | **1.36×** |
+
+So at the pilot's shortest configuration a model here receives **about 68% more cumulative
+learning rate** than the reference procedure would have delivered at the same token budget.
+That is not a rounding difference, and it means the phrase "the same regime as the reference"
+must not be used without this qualification. The models are trained under the reference's
+*constants*; they are not trained under the reference's *trajectory*.
 This must appear in the paper's methods as a stated difference from the reference, not as a
 detail left in the repository. It is a limitation of the comparison, and pretending the
 procedures match would be the worse error.
+
+**Round-2 corrections, applied.**
+
+*Provenance of the 10% warmup, overclaimed and now stated honestly.* An earlier version said
+`run.sh` "actually produced the released IsoFLOP data." **The repository does not show that:**
+`exp_data.csv` predates the script in git history and the script loops over `vocab=4096`
+only. So neither candidate is proven to be what generated the released data — 8% is a module
+default that may never have been passed to anything, and 10% is the only warmup ratio the
+project is on record as actually passing. **10% is chosen as the better-evidenced of two weak
+options, and this study cannot claim to have matched Tao's warmup — only to have matched the
+one value they published a script for.** That is the sixth time in this project a claim ran
+ahead of its evidence.
+
+*Withdrawn LR language, purged from the code as well as the prose.* Round 1 withdrew the
+"tuned to" claim and it was corrected in `AMENDMENTS.md` only, while `src/train.py`,
+`src/pilot.py`, `scripts/pilot_batch_probe.py` and `tests/test_pilot.py` kept asserting it.
+The same failure as the stale docstring one track earlier: the argument was fixed in one
+place and left standing in four. All now say the released recipe *pairs* the two.
+
+*`lr_at`'s docstring corrected.* It still said an intermediate checkpoint has "exactly the
+learning-rate history of a run trained to that step." That is false under 10% warmup scaling
+with separate budget-specific runs, and is the same claim A5 was annotated for.
+
+*Stale figures fixed in the PRIMARY text, not only in a later note.* `130–189` and "inside
+that range" survived in A7's main body and in `src/pilot.py`'s user-visible docstring after
+being corrected further down. A reader hits the wrong number first; appending a correction is
+not correcting.
+
+*A5's second ground, demoted.* See the decision record below — a seed-level paired bootstrap
+can preserve within-seed covariance, so checkpoint reuse changes the data-generating
+procedure without automatically invalidating the bootstrap. It is recorded as a
+consideration, not a proof, and the retain-separate-runs decision does not rest on it.

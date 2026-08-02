@@ -57,17 +57,24 @@ GLOBAL_BATCH_SEQUENCES = 512
 """Sequences per OPTIMIZER step, matching `reference/tinyllama_pretrain.py:37`.
 
 This is a recipe parameter, not a hardware one, and `PLAN.md` never fixed it -- it says
-only "the shared Tao training recipe". It is fixed here because it is not free: the
-reference's `learning_rate = 4e-4` was chosen for this batch, and the two are coupled.
-`micro_batch` is purely a memory-partitioning knob, exactly as in the reference, where
+only "the shared Tao training recipe". It is fixed here because the released recipe PAIRS
+`global_batch_size = 512` with `learning_rate = 4e-4`, so changing one while keeping the
+other departs from that pairing. Note what this does NOT claim: the reference gives no
+evidence of how `4e-4` was selected, and an earlier version of this docstring asserted the
+two were tuned together. That was withdrawn in review. `micro_batch` is purely a
+memory-partitioning knob, exactly as in the reference, where
 `gradient_accumulation_steps = batch_size // micro_batch_size` is DERIVED (`:125`).
 
 Checked against Tao's released runs rather than assumed. At their smallest fitted scale
 (33M non-vocabulary parameters) their runs span **57 to 1,144 optimizer steps**, median
-601. This pilot at 8M lands at **130-189 steps** -- inside their range and above their
-minimum. Running instead at an effective batch of 16 sequences would give ~6,000 steps,
-**10x their median**, with a learning rate tuned for a batch 32x larger; that would be the
-departure from the recipe, not this.
+601 (nominal; their released checkpoint filenames imply a median nearer 630). This pilot at
+8M lands at **131-190 optimizer updates** -- in the LOWER TAIL, roughly the 10th-15th
+percentile and 0.21-0.30x their median, above their minimum but not typical of their grid.
+Range inclusion alone would be a weak test, since their range spans 20x.
+
+Running instead at an effective batch of 16 sequences would give ~6,000 updates, **10x their
+median**, at a learning rate the released recipe pairs with a batch 32x larger; that is the
+larger departure.
 """
 
 
@@ -150,7 +157,7 @@ def grad_accum_for(micro_batch: int) -> int:
         raise ValueError(
             f"micro_batch={micro_batch} does not divide the global batch of "
             f"{GLOBAL_BATCH_SEQUENCES} sequences; the effective batch would not be the "
-            f"recipe's, and the learning rate is tuned to it"
+            f"recipe's, which the released code pairs with learning_rate=4e-4"
         )
     return GLOBAL_BATCH_SEQUENCES // micro_batch
 
