@@ -68,9 +68,11 @@ memory-partitioning knob, exactly as in the reference, where
 Checked against Tao's released runs rather than assumed. At their smallest fitted scale
 (33M non-vocabulary parameters) their runs span **57 to 1,144 optimizer steps**, median
 601 (nominal; their released checkpoint filenames imply a median nearer 630). This pilot at
-8M lands at **131-190 optimizer updates** -- in the LOWER TAIL, roughly the 10th-15th
-percentile and 0.21-0.30x their median, above their minimum but not typical of their grid.
-Range inclusion alone would be a weak test, since their range spans 20x.
+8M lands at **131-190 optimizer updates** -- in the LOWER TAIL: only about 10-15% of their
+smallest-scale evaluations fall below this range, both endpoints sit below the
+25th-percentile value of their grid, and the range is 0.21-0.30x their median. Above their
+minimum, but not typical of their grid. Range inclusion alone would be a weak test, since
+their range spans 20x.
 
 Running instead at an effective batch of 16 sequences would give ~6,000 updates, **10x their
 median**, at a learning rate the released recipe pairs with a batch 32x larger; that is the
@@ -171,6 +173,7 @@ def run_cell(
     block_size: int = T.BLOCK_SIZE,
     eval_batch: int = 4,
     log_dir: Path | None = None,
+    allow_off_recipe_batch: bool = False,
 ) -> dict:
     """Train and evaluate one (cell, seed). The A6 contract is enforced, not assumed.
 
@@ -178,9 +181,20 @@ def run_cell(
     `unseeded_order_ok`, and `evaluate_run` is called with a real `train_order`.
 
     `grad_accum` defaults to whatever holds the effective batch at the recipe's 512
-    sequences; passing it explicitly is for tests only.
+    sequences. It may be passed explicitly -- tests use small values -- but it is VALIDATED,
+    not trusted: an unchecked override left a non-512 effective batch reachable through the
+    public entry point, which is the same unenforced-contract shape as the defect A6 exists
+    to fix. A caller wanting a different effective batch must say so with
+    `allow_off_recipe_batch=True`, which no study run sets.
     """
     grad_accum = grad_accum_for(micro_batch) if grad_accum is None else grad_accum
+    if not allow_off_recipe_batch and micro_batch * grad_accum != GLOBAL_BATCH_SEQUENCES:
+        raise ValueError(
+            f"micro_batch({micro_batch}) * grad_accum({grad_accum}) = "
+            f"{micro_batch * grad_accum}, not the recipe's {GLOBAL_BATCH_SEQUENCES} "
+            f"sequences per optimizer step. Omit grad_accum to derive it, or set "
+            f"allow_off_recipe_batch=True to declare this run off-recipe."
+        )
     train_tokens = _load_split(cell.vocab_size, "train")
     eval_tokens = _load_split(cell.vocab_size, "selection_val")
     tokenizer = tk.load(TOKENIZERS / f"bpe_v{cell.vocab_size}.json")

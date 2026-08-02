@@ -72,11 +72,12 @@ configuration, so a fixed step count would mean something different in every run
 def lr_at(step: int, warmup_steps: int, base_lr: float = LEARNING_RATE) -> float:
     """Linear warmup, then CONSTANT. Faithful to reference `get_lr`.
 
-    Note the consequence: because the rate never decays, an intermediate checkpoint has
-    exactly the learning-rate history of a run trained to that step. Checkpoint reuse for
-    lower budgets is therefore valid under THIS schedule, unlike under cosine -- but the
-    preregistration currently specifies separate budget-specific runs, so any change is a
-    documented amendment, not an optimisation applied here.
+    An earlier version of this docstring claimed that, because the rate never decays, an
+    intermediate checkpoint has "exactly the learning-rate history of a run trained to that
+    step". **That is false here and is withdrawn.** It holds only if the two share a warmup
+    LENGTH, and they do not: warmup is a fraction of run length, so a dedicated 131-step run
+    warms over ~13 steps while a 131-step checkpoint of a 1144-step run warmed over ~114.
+    Cumulative learning-rate exposure differs by up to 1.7x. See amendment A7.
     """
     if warmup_steps > 0 and step < warmup_steps:
         return base_lr * step / warmup_steps

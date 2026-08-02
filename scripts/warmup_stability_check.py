@@ -1,12 +1,13 @@
 """Does a 13-19 step warmup destabilise training at the pilot configuration?
 
 NOT a pilot run. This trains a few tens of optimizer steps and looks at the loss curve; it
-produces no `L_u` and nothing here enters inference. Output goes to `runs/diagnostics/` so it
-cannot be confused with `runs/pilot/`.
+produces no `L_u` and nothing here enters inference. Output goes to
+`results/warmup_stability.json` -- committed, because a claim cited in `AMENDMENTS.md` must
+rest on evidence a reader can open.
 
-The question is specific. A7 fixes warmup at 10% of run length, from the reference's own run
-script. At Tao's 33M scale that was ~114 optimizer steps; at this study's budgets the same
-fraction is **13-19 steps**, because the runs are short. Warmup exists to keep Adam's second
+The question is specific. A7 fixes warmup at 10% of run length. At Tao's 33M scale that was
+~114 optimizer steps; at this study's budgets the same fraction is **13-19 steps**, because
+the runs are short. Warmup exists to keep Adam's second
 moment estimates from producing an enormous early step, and 13 steps is not obviously enough.
 If it is not, the loss curve shows it in exactly this window: a spike, a plateau at chance, or
 a NaN.
@@ -29,7 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import model as M, pilot as P, train as T  # noqa: E402
 
-OUT = Path(__file__).resolve().parents[1] / "runs" / "diagnostics"
+# results/, not runs/ -- `runs/` is gitignored, so an artifact there cannot support a claim
+# anyone else can check. An earlier version wrote to runs/diagnostics/ while AMENDMENTS.md
+# cited its numbers: the same "evidence nobody can see" failure as the skipping test.
+OUT = Path(__file__).resolve().parents[1] / "results"
 
 
 def main() -> None:
@@ -55,13 +59,24 @@ def main() -> None:
         real_warmup = full.warmup_steps
         real_total = full.total_steps
 
-        # Train only `--steps` steps, but with the warmup the REAL run would use, so the
-        # early trajectory is the real one rather than a rescaled toy.
+        # Train only `--steps` steps, but with the warmup length the REAL run would use.
+        #
+        # An earlier version set `warmup_fraction = real_warmup / real_total`, which is
+        # WRONG: `warmup_steps` is `round(total_steps * warmup_fraction)` and `total_steps`
+        # here is the PROBE's 30, not the real 131-190. That produced a 3-step warmup while
+        # claiming to test 13-19 -- the check did not test what its output was cited for.
+        # The fraction must be taken against the probe's own step count.
+        if real_warmup >= args.steps:
+            raise SystemExit(f"--steps {args.steps} must exceed the real warmup {real_warmup}")
         budget = args.steps * ga * args.micro_batch * T.BLOCK_SIZE
         cfg = T.TrainConfig(target_tokens=budget, micro_batch=args.micro_batch,
                             block_size=T.BLOCK_SIZE, grad_accum=ga, seed=0,
                             device=args.device, log_every_s=0.0)
-        cfg = type(cfg)(**{**cfg.__dict__, "warmup_fraction": real_warmup / real_total})
+        cfg = type(cfg)(**{**cfg.__dict__, "warmup_fraction": real_warmup / args.steps})
+        assert cfg.warmup_steps == real_warmup, (
+            f"probe warmup {cfg.warmup_steps} != real {real_warmup}; the bug this assert "
+            f"exists to prevent is exactly the one that shipped once already"
+        )
 
         train = np.load(P.TOKENS / f"v{cell.vocab_size}_train.npy", mmap_mode="r")
         stream = T.TokenStream(np.asarray(train), T.BLOCK_SIZE, order_seed=0)
@@ -77,7 +92,15 @@ def main() -> None:
 
         chance = float(np.log(cell.vocab_size))
         finite = all(np.isfinite(curve))
-        peak_after_warmup = max(curve[real_warmup:]) if len(curve) > real_warmup else None
+        post = curve[real_warmup:]
+        peak_after_warmup = max(post) if post else None
+        # A transient dip below chance is not stability. Require the loss to END below
+        # chance and to STAY there over the last few logged steps, and measure the spike
+        # against the value at the end of warmup rather than against the global max.
+        tail = post[-5:] if len(post) >= 5 else post
+        sustained = bool(tail) and all(v < chance for v in tail)
+        at_warmup_end = curve[real_warmup - 1] if real_warmup <= len(curve) else curve[0]
+        spike = (peak_after_warmup is not None and peak_after_warmup > at_warmup_end * 1.5)
         row = {
             "vocab_size": cell.vocab_size,
             "real_total_steps": real_total, "real_warmup_steps": real_warmup,
@@ -86,10 +109,12 @@ def main() -> None:
             "first_loss": curve[0], "last_loss": curve[-1],
             "min_loss": min(curve), "max_loss": max(curve),
             "all_finite": finite,
-            "fell_below_chance": min(curve) < chance,
+            "dipped_below_chance": min(curve) < chance,
+            "ended_below_chance": curve[-1] < chance,
+            "sustained_below_chance": sustained,
+            "loss_at_warmup_end": at_warmup_end,
             "max_after_warmup": peak_after_warmup,
-            "spike_after_warmup": (peak_after_warmup is not None
-                                   and peak_after_warmup > curve[real_warmup] * 1.5),
+            "spike_after_warmup": spike,
             "curve": curve,
         }
         results.append(row)
@@ -98,7 +123,7 @@ def main() -> None:
 
     (OUT / "warmup_stability.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-    ok = all(r["all_finite"] and r["fell_below_chance"] and not r["spike_after_warmup"]
+    ok = all(r["all_finite"] and r["sustained_below_chance"] and not r["spike_after_warmup"]
              for r in results)
     print("\n" + ("STABLE: no NaN, loss below chance, no post-warmup spike"
                   if ok else "UNSTABLE -- inspect the curves before running the pilot"))

@@ -152,7 +152,8 @@ def test_run_cell_executes_end_to_end_and_records_the_witness(monkeypatch, tmp_p
                   target_tokens=block * 40, d=32, n_layer=1, n_head=2, d_ffn=64, nnv=1000)
 
     rec = P.run_cell(cell, seed=3, micro_batch=2, grad_accum=2, device="cpu",
-                     block_size=block, eval_batch=2, log_dir=tmp_path)
+                     block_size=block, eval_batch=2, log_dir=tmp_path,
+                     allow_off_recipe_batch=True)
 
     # The contract travelled into the record, which is what the audit reads.
     assert rec["train_order_seed"] == 3
@@ -185,7 +186,8 @@ def test_run_cell_fits_the_baseline_on_the_consumed_set_not_a_prefix(monkeypatch
     cell = P.Cell(vocab_size=V, arm="C", budget_flops=1.0,
                   target_tokens=block * 60, d=32, n_layer=1, n_head=2, d_ffn=64, nnv=1000)
     rec = P.run_cell(cell, seed=1, micro_batch=2, grad_accum=2, device="cpu",
-                     block_size=block, eval_batch=2, log_dir=tmp_path)
+                     block_size=block, eval_batch=2, log_dir=tmp_path,
+                     allow_off_recipe_batch=True)
 
     # A permuted 60-sequence sample of a half-0/half-1 corpus sees both tokens, so the
     # baseline on an all-1 eval set is far from the prefix fit's near-certainty.
@@ -276,3 +278,10 @@ def test_reference_rows_are_checkpoints_not_separate_runs() -> None:
     assert s["evals_per_run"] == 20
     assert s["smallest_family_rows"] % s["evals_per_run"] == 0
     assert s["runs_in_smallest_family"] == 10
+
+
+def test_an_off_recipe_effective_batch_is_refused_at_the_entry_point() -> None:
+    """An unchecked grad_accum override left a non-512 batch publicly reachable."""
+    cell = P.pilot_cells()[0]
+    with pytest.raises(ValueError, match="not the recipe's 512"):
+        P.run_cell(cell, seed=0, micro_batch=4, grad_accum=4, device="cpu")

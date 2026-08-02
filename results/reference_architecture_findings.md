@@ -88,8 +88,10 @@ defined at line 47 and **referenced nowhere**; `lr_decay_iters` is accepted and 
 
 Full recipe, transcribed rather than chosen: `lr=4e-4`, `weight_decay=1e-1`,
 `betas=(0.9, 0.95)`, `grad_clip=1.0`, `block_size=2048`, `global_batch_size=512`
-sequences, `warmup_steps=2000` of `max_step=25000` (8%, encoded here as a fraction so it
-scales with run length).
+sequences. **Warmup is the exception and is NOT transcribed:** the module defaults are
+`warmup_steps=2000` of `max_step=25000` (8%), the upstream experiment script passes
+`5480/54800` (10%), and neither is provably what produced the released data. This study uses
+10% as a recorded choice under amendment A7, not as a transcription.
 
 ## Consequence: the case against checkpoint reuse was premised on cosine
 
@@ -97,10 +99,16 @@ Round 2 of review blocked WSD and intermediate-checkpoint reuse on the grounds t
 "under cosine decay, a checkpoint taken partway through a long run has a different
 learning-rate history from a model intentionally trained to that lower compute budget."
 
-That reasoning is correct — and does not apply to a constant-rate schedule. Under Tao's
-actual schedule, a checkpoint at step *k* has **exactly** the learning-rate history of a
-run trained to step *k*: linear warmup, then a constant rate. Checkpoint reuse is
-therefore legitimate here.
+That reasoning is correct about cosine, and this file's conclusion from it — that a
+checkpoint at step *k* has **exactly** the learning-rate history of a run trained to step
+*k*, so reuse is legitimate — is **WITHDRAWN**. It is true only when the two share a warmup
+LENGTH. Warmup is a fraction of run length, so a dedicated *k*-step run warms over `0.1k`
+steps while a checkpoint at step *k* of a longer run warmed over that longer run's warmup.
+At this study's scale the cumulative learning-rate exposure differs by up to **1.7x**.
+
+Amendment A5 declined reuse anyway, so nothing was built on this; A7 records the refutation
+and the retained decision. The paragraph is annotated rather than deleted so the claim
+cannot be cited from history by accident.
 
 **Concrete saving, if adopted:** the M2 arm currently trains `V_run` separately at
 `1.1·C`, costing `C + 1.1·C = 2.1·C` per scale-seed. Training once to `1.1·C` and

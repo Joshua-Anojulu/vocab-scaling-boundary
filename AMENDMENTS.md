@@ -427,15 +427,18 @@ concern, and it is answered by Tao's own released data rather than by argument.
 
 At their smallest fitted scale (33M non-vocabulary parameters, 200 released runs) their runs
 span **57 to 1,144 optimizer steps, median 601** (nominal; see the artifact caveat below).
-This pilot's **131–190 updates** sit in the LOWER TAIL of that distribution — roughly the
-10th–15th percentile, 0.21–0.30× their median — above their minimum but not typical of their
+This pilot's **131–190 updates** sit in the LOWER TAIL of that distribution — with only about 10–15% of their evaluations falling below
+this study's range, and both endpoints below their 25th-percentile value; 0.21–0.30× their
+median — above their minimum but not typical of their
 grid. Recomputed in `tests/test_pilot.py` against the committed
 `results/reference_step_stats.json`, so a future change that moves the study out of the low
 tail fails a test.
 
 **"Inside their range" overstates it, and the precise position is this:** their range spans
-20×, so landing inside it is a weak test. Our step counts sit at the **10th–15th percentile**
-of their smallest-scale runs — at the low end, not mid-distribution.
+20×, so landing inside it is a weak test. Our step counts sit at the lower tail of their
+smallest-scale evaluations: **about 10% of them fall below this study's shortest run and
+about 15% below its longest**, and both endpoints sit below the 25th-percentile value of
+their grid.
 
 That is expected rather than alarming, and the reason is the study's own premise. Our pilot
 budget is `C = 1.031e16` against their smallest-scale ladder of `1.272e16` to `5.940e17`:
@@ -457,8 +460,9 @@ the decision had it exactly backwards.
    here; the study tests Tao's law under Tao's recipe, and optimizing the recipe would
    confound the test.
 2. **Not** that the resulting models are well converged in an absolute sense. They are
-   trained in the same regime as the reference runs the law was fitted on, which is the
-   only comparability that matters for M1 and M2.
+   trained under the reference's CONSTANTS. They are not trained under its trajectory -- see the
+   quantified learning-rate-exposure limitation below, where the difference reaches 1.69x.
+   "Same regime" is therefore not a phrase this study may use unqualified.
 3. **Not** that micro-batch is inert. It changes throughput and peak memory, and it is
    chosen by measurement (`scripts/pilot_batch_probe.py`,
    `results/pilot_batch_probe.json`) — but it cannot change the effective batch, which is
@@ -551,7 +555,9 @@ discrepancy is visible rather than buried. **The conclusion is unchanged under e
 pilot sits in the lower tail on both.
 
 *Position, stated precisely.* The claim is **lower-tail but above the minimum** — roughly the
-10th–15th percentile, and 0.21–0.30× the median. It is **not** that the pilot is typical of
+lower tail — about 10–15% of their evaluations fall below this study's range, both endpoints
+sit below their 25th-percentile value, and the range is 0.21–0.30× the median. It is **not**
+that the pilot is typical of
 their grid, and range-inclusion is explicitly disclaimed as too weak to carry the decision:
 their range spans 20×.
 
@@ -601,10 +607,10 @@ multiplier over all updates, which is what a linear warmup actually changes:
 
 | updates | this study (warmup 10% of its own run) | checkpoint of a 1144-step run (warmup 114) | ratio |
 |---|---|---|---|
-| 131 | 125.0 | 74.5 | **1.68×** |
-| 190 | 181.0 | 133.5 | **1.36×** |
+| 131 | 124.0 | 73.5 | **1.69×** |
+| 190 | 180.0 | 132.5 | **1.36×** |
 
-So at the pilot's shortest configuration a model here receives **about 68% more cumulative
+So at the pilot's shortest configuration a model here receives **about 69% more cumulative
 learning rate** than the reference procedure would have delivered at the same token budget.
 That is not a rounding difference, and it means the phrase "the same regime as the reference"
 must not be used without this qualification. The models are trained under the reference's
@@ -645,25 +651,22 @@ can preserve within-seed covariance, so checkpoint reuse changes the data-genera
 procedure without automatically invalidating the bootstrap. It is recorded as a
 consideration, not a proof, and the retain-separate-runs decision does not rest on it.
 
-**Warmup stability, checked rather than argued (2026-08-02).**
+**Warmup stability — the first check was invalid and has been withdrawn (2026-08-02).**
 
-Round 2 asked whether 10% of a 131–190 step run — i.e. **13–19 warmup steps**, against Tao's
-~114 — creates a problem of its own. Warmup exists to stop Adam taking an enormous early step
-while its second-moment estimate is still poor, and 13 steps is not obviously enough for that.
-The question is empirical, so `scripts/warmup_stability_check.py` answers it at the two
-extreme vocabularies, using each configuration's REAL warmup length:
+Round 2 asked whether 10% of a 131–190 step run — **13–19 warmup steps**, against Tao's ~114
+— creates a problem of its own. The question is empirical and `scripts/warmup_stability_check.py`
+was written to answer it.
 
-| V | real run | real warmup | chance `ln V` | first | last (30 steps) | finite |
-|---|---|---|---|---|---|---|
-| 768 | 189 steps | 19 | 6.644 | 6.701 | **5.052** | yes |
-| 12672 | 131 steps | 13 | 9.447 | 9.512 | **7.412** | yes |
+**The first version did not test what its output was cited for.** It set
+`warmup_fraction = real_warmup / real_total`, but `warmup_steps` is
+`round(total_steps × warmup_fraction)` and `total_steps` there is the probe's 30 — not the
+real 131–190. The actual warmup exercised was **3 steps**, while the amendment cited the
+result as evidence about 13–19. The numbers were also written to `runs/diagnostics/`, which
+`.gitignore` excludes, so the table cited evidence no reader could open — the same failure as
+the test that silently skipped without `exp_data.csv`, two rounds after that one was fixed.
 
-No NaN, no post-warmup spike, and loss falls well below chance at both ends. **The short
-warmup does not destabilise training at this scale.**
-
-**What this does not show**, stated because the check is cheap and its scope is narrow: it
-covers 30 optimizer steps, so it establishes early-trajectory stability through warmup and a
-little beyond — not that the full 131–190 step runs converge well, and not anything about
-`L_u`. It is a pre-flight check against wasting an 18-run pilot, not evidence about the
-study's results. It produced no `L_u` and writes to `runs/diagnostics/`, separate from
-`runs/pilot/`, so it cannot be mistaken for pilot output.
+Both are corrected: the probe now takes the fraction against its own step count and
+**asserts** `cfg.warmup_steps == real_warmup` before training, the pass criterion requires
+loss *sustained* below chance rather than a transient dip, and output is committed to
+`results/warmup_stability.json`. The numeric claim is withheld until that corrected run
+completes; **no stability claim is made here on the strength of the invalid check.**
