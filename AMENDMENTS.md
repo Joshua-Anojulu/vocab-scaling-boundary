@@ -437,6 +437,15 @@ plan already settled.
 
 **2. Warmup is 10% of run length** (`WARMUP_FRACTION = 5480/54800`).
 
+**The micro-batch is chosen by measurement, not decree**, since it cannot change the
+effective batch. `scripts/pilot_batch_probe.py` → `results/pilot_batch_probe.json` sweeps
+micro-batches 2/4/8/16 at their derived `grad_accum` of 256/128/64/32, at the pilot scale and
+across the pilot vocabularies: **`micro_batch=4` is fastest and second-cheapest in memory** —
+9.48 h projected for 18 runs at 1.89 GB peak, against 10.26/10.56/10.96 h for the others.
+Measuring at the derived `grad_accum` mattered: an earlier probe compared `mb=4,ga=4` against
+`mb=8,ga=8`, i.e. effective batches of 16 and 64 the pilot will never run at, and projected
+13.04 h because the optimizer step amortises very differently at `ga=128`.
+
 ### The evidence, and exactly how strong it is
 
 **For the batch: the released recipe pairs `global_batch_size = 512` with
@@ -458,7 +467,8 @@ matched the one value they published a script for.**
 Their IsoFLOP data is **20 in-training evaluations per (vocabulary, scale)**, from
 `compute_eval_steps(max_steps, evals_per_interval=20)` — checkpoints of one run per
 configuration, not separate budget-specific runs. For the 33M family the evaluation positions
-are 57, 114, … 1,144 nominal steps (median 601); their released checkpoint filenames run
+are 57, 114, 172, … 1,144 nominal steps (median 601), derived as
+`num_characters · f(V) / (512 · 2048)`; their released checkpoint filenames run
 `step-000060` to `step-001200` (median 630). Both conventions are recorded in
 `results/reference_step_stats.json`; the conclusion below holds under either.
 
