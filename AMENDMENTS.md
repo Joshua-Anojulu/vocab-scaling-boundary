@@ -644,3 +644,26 @@ not correcting.
 can preserve within-seed covariance, so checkpoint reuse changes the data-generating
 procedure without automatically invalidating the bootstrap. It is recorded as a
 consideration, not a proof, and the retain-separate-runs decision does not rest on it.
+
+**Warmup stability, checked rather than argued (2026-08-02).**
+
+Round 2 asked whether 10% of a 131–190 step run — i.e. **13–19 warmup steps**, against Tao's
+~114 — creates a problem of its own. Warmup exists to stop Adam taking an enormous early step
+while its second-moment estimate is still poor, and 13 steps is not obviously enough for that.
+The question is empirical, so `scripts/warmup_stability_check.py` answers it at the two
+extreme vocabularies, using each configuration's REAL warmup length:
+
+| V | real run | real warmup | chance `ln V` | first | last (30 steps) | finite |
+|---|---|---|---|---|---|---|
+| 768 | 189 steps | 19 | 6.644 | 6.701 | **5.052** | yes |
+| 12672 | 131 steps | 13 | 9.447 | 9.512 | **7.412** | yes |
+
+No NaN, no post-warmup spike, and loss falls well below chance at both ends. **The short
+warmup does not destabilise training at this scale.**
+
+**What this does not show**, stated because the check is cheap and its scope is narrow: it
+covers 30 optimizer steps, so it establishes early-trajectory stability through warmup and a
+little beyond — not that the full 131–190 step runs converge well, and not anything about
+`L_u`. It is a pre-flight check against wasting an 18-run pilot, not evidence about the
+study's results. It produced no `L_u` and writes to `runs/diagnostics/`, separate from
+`runs/pilot/`, so it cannot be mistaken for pilot output.
