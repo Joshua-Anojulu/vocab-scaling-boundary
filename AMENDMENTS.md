@@ -469,3 +469,57 @@ step counts alongside Tao's at the comparable scale. A reviewer's first question
 study run at 1/130th of the reference's token budget will be whether the models were trained
 comparably; the step-count comparison is the answer and belongs in the text rather than in a
 repository.
+
+---
+
+### A7 — correction and expansion, before adoption (2026-08-02)
+
+Round 1 of review returned five blocking findings. Two changed the amendment's substance and
+one changed a training constant. A7 remains **PROPOSED**; nothing below has been run.
+
+**The LR-coupling claim is withdrawn.** A7 argued the batch is not free because
+`learning_rate = 4e-4` is "tuned to" a 512-sequence batch. The reference pairs the two but
+gives **no evidence how `4e-4` was selected**, and the reviewer was right that this was
+asserted rather than shown. The defensible claim is narrower and sufficient: **fidelity to
+the released recipe.** The two values were used together in the runs the law was fitted on,
+so changing one while keeping the other departs from that pairing — whether or not the
+pairing was arrived at by tuning.
+
+This is the fifth time in this project that a mechanism was asserted ahead of the evidence
+for it. The others: the predicted fertility flattening, the tilt-is-worst-case argument, the
+document-rate mechanism, and the transcribed `C`. The numbers have held up; the explanations
+offered for them have not.
+
+**Warmup was 8% and should be 10%, and this is not a rounding matter.** `WARMUP_FRACTION` was
+derived from `tinyllama.py`'s module defaults (`warmup_steps=2000, max_step=25000`). The
+script that actually produced the released IsoFLOP data,
+`experiments/light_train/scripts/run.sh`, passes `warmup_steps=5480, max_step=54800` —
+exactly **10%**. Verified against the upstream repository directly, not inferred from the
+vendored copy. The defaults were never the experiment. `src/train.py` now uses `5480/54800`.
+
+**A discovery that outgrew this amendment: Tao's IsoFLOP points are not separate runs.**
+`compute_eval_steps(max_steps, evals_per_interval=20)` produces 20 linearly spaced in-training
+evaluations, and `reference/exp_data.csv` contains **exactly 20 rows per (vocabulary, scale)**
+at steps `57, 114, 172, … 1144` for the 33M family. Their IsoFLOP curve across compute is
+therefore built from **checkpoints of a single run per configuration**, not from
+budget-specific runs.
+
+`PLAN.md` prescribes "separate budget-specific runs", which is a different procedure. The
+consequence is recorded here rather than acted on, because it bears on an already-adopted
+amendment and is not this amendment's to settle.
+
+**It does, however, refute A5's stated reasoning.** A5 declined checkpoint reuse while
+accepting that "under a constant rate, a checkpoint at step *k* does have the learning-rate
+history of a run trained to step *k*." That equivalence **is false whenever warmup scales with
+run length**, which it does: a dedicated run to step *k* warms up over `0.1k` steps, whereas a
+checkpoint at step *k* of a 1144-step run warmed up over 114. A5's conclusion survives on its
+*second*, independent ground — that reuse induces a dependence between the `C` and `1.1·C`
+observations which the M2 bootstrap treats as paired-but-distinct — but its first ground is
+withdrawn. A5's text is left intact and annotated here rather than rewritten, following this
+project's convention for superseded reasoning.
+
+**Consequence to carry into reporting, not to fix silently.** This study trains a dedicated
+run per budget with warmup scaled to that run; Tao read intermediate checkpoints of a longer
+run whose warmup was scaled to the longer run. At the low-compute end the learning-rate
+trajectories therefore differ, and that is a procedural departure from the reference which
+must be stated in the paper rather than left for a reader to discover in the code.

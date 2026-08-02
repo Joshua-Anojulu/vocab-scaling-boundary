@@ -40,7 +40,18 @@ WEIGHT_DECAY = 1e-1
 BETA1, BETA2 = 0.9, 0.95
 GRAD_CLIP = 1.0
 BLOCK_SIZE = 2048
-WARMUP_FRACTION = 2000 / 25000       # 8%, expressed as a fraction so it scales with run length
+WARMUP_FRACTION = 5480 / 54800
+"""10%, from the reference's own run script rather than its module defaults.
+
+`tinyllama.py` defaults to `warmup_steps=2000, max_step=25000` (8%), and this constant was
+originally derived from those. But `experiments/light_train/scripts/run.sh` -- the script
+that actually produced the released IsoFLOP data -- passes `warmup_steps=5480,
+max_step=54800`, exactly **10%**. The defaults were never the experiment; the run script
+was. Verified against the upstream repository, not inferred.
+
+Expressed as a fraction because their warmup scales with run length: it is 10% of `max_step`
+in the released script, and `max_step` differs per configuration.
+"""
 
 
 def lr_at(step: int, warmup_steps: int, base_lr: float = LEARNING_RATE) -> float:

@@ -46,16 +46,18 @@ def test_no_min_lr_floor_is_applied() -> None:
     assert T.lr_at(10_000, 100, 4e-4) != pytest.approx(4e-5)
 
 
-def test_warmup_is_eight_percent_of_the_run() -> None:
+def test_warmup_is_ten_percent_from_the_run_script_not_the_module_defaults() -> None:
+    """run.sh passes 5480/54800 = 10%; the 2000/25000 defaults were never the experiment."""
+    assert T.WARMUP_FRACTION == pytest.approx(0.10)
     cfg = T.TrainConfig(target_tokens=64 * 100 * 25, micro_batch=1, block_size=64)
-    assert cfg.warmup_steps == pytest.approx(cfg.total_steps * (2000 / 25000), abs=1)
+    assert cfg.warmup_steps == pytest.approx(cfg.total_steps * 0.10, abs=1)
 
 
 def test_recipe_constants_match_the_reference() -> None:
     assert (T.LEARNING_RATE, T.WEIGHT_DECAY, T.GRAD_CLIP) == (4e-4, 1e-1, 1.0)
     assert (T.BETA1, T.BETA2) == (0.9, 0.95)
     assert T.BLOCK_SIZE == 2048
-    assert T.WARMUP_FRACTION == pytest.approx(0.08)
+    assert T.WARMUP_FRACTION == pytest.approx(0.10)
 
 
 # --- token budget ------------------------------------------------------------------
