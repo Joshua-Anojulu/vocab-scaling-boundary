@@ -75,7 +75,8 @@ def test_run_consumes_exactly_the_planned_tokens() -> None:
     block, mb = 64, 2
     # Deliberately NOT a whole multiple of a step, so the final step must be trimmed.
     cfg = T.TrainConfig(target_tokens=block * 17 + 30, micro_batch=mb, block_size=block,
-                        grad_accum=3, device="cpu", log_every_s=1e9)
+                        grad_accum=3, device="cpu", log_every_s=1e9,
+                        unseeded_order_ok=True)
     toks = np.random.randint(0, 512, size=block * 40 + 1, dtype=np.uint16)
     res = T.train_run(tiny_model(block=block), T.TokenStream(toks, block), cfg)
     assert res.consumed_tokens == cfg.target_sequences * block
@@ -103,13 +104,71 @@ def test_sequences_are_self_contained_so_reordering_invents_no_targets() -> None
 
 
 def test_permutation_is_nested_so_a_bigger_budget_extends_a_smaller_one() -> None:
-    """A 1.1C run must read its C run's sequences plus more, in the same order."""
-    block = 8
+    """A 1.1C run must read its C run's sequences plus more, in the same order.
+
+    Comparing two whole streams would be tautological -- same array, same seed, same
+    permutation. The property that can actually break is about CONSUMPTION: read a small
+    budget and a large one from the same (array, seed) and the small one must be a strict
+    prefix of the large one, sequence for sequence.
+    """
+    block, dev = 8, torch.device("cpu")
     toks = np.arange(block * 20 + 1, dtype=np.uint16)
-    small = T.TokenStream(toks, block, order_seed=3)
-    big = T.TokenStream(toks, block, order_seed=3)
-    assert np.array_equal(big.order[: len(small.order)], small.order)
-    assert np.array_equal(small.order[:12], big.order[:12])
+
+    def read(n_seq: int) -> list[list[int]]:
+        s = T.TokenStream(toks, block, order_seed=3)
+        return [row.tolist() for _ in range(n_seq) for row in s.next_batch(1, dev)[0]]
+
+    at_c, at_11c = read(6), read(9)
+    assert at_11c[: len(at_c)] == at_c
+    assert len(at_11c) > len(at_c)
+
+
+def test_nesting_breaks_if_the_array_is_sliced_to_budget_and_the_result_records_it() -> None:
+    """The realistic way to break M2 pairing, and the artifact field that catches it."""
+    block = 8
+    full = np.arange(block * 20 + 1, dtype=np.uint16)
+    sliced = full[: block * 10 + 1]          # a caller "helpfully" trimming to budget
+    wide = T.TokenStream(full, block, order_seed=3)
+    narrow = T.TokenStream(sliced, block, order_seed=3)
+    # Same seed, different permuted domain -> the prefixes diverge.
+    assert wide.n_sequences != narrow.n_sequences
+    assert not np.array_equal(wide.order[:5], narrow.order[:5])
+    # Which is exactly what `stream_sequences` in TrainResult makes auditable.
+    assert (wide.n_sequences, narrow.n_sequences) == (20, 10)
+
+
+def test_confirmatory_run_refuses_a_stream_whose_order_is_not_tied_to_the_seed() -> None:
+    """The original defect was an unenforced contract. It is now enforced."""
+    block, mb = 8, 2
+    cfg = T.TrainConfig(target_tokens=block * mb * 3, micro_batch=mb, block_size=block,
+                        device="cpu", log_every_s=1e9, seed=5)
+    toks = np.random.RandomState(0).randint(0, 64, size=block * 40 + 1).astype(np.uint16)
+    with pytest.raises(ValueError, match="not tied to the seed"):
+        T.train_run(tiny_model(vocab=64, block=block), T.TokenStream(toks, block), cfg)
+    # A mismatched seed is refused too, not just a missing one.
+    with pytest.raises(ValueError, match="not tied to the seed"):
+        T.train_run(tiny_model(vocab=64, block=block),
+                    T.TokenStream(toks, block, order_seed=4), cfg)
+    # Correctly tied: runs, and records what it used.
+    res = T.train_run(tiny_model(vocab=64, block=block),
+                      T.TokenStream(toks, block, order_seed=5), cfg)
+    assert (res.order_seed, res.stream_sequences) == (5, 40)
+
+
+def test_seeds_differing_only_in_order_produce_different_runs() -> None:
+    """If order were still fixed, these would be identical and the fix would be a no-op."""
+    block, mb, V = 16, 2, 64
+    toks = np.random.RandomState(3).randint(0, V, size=block * 200 + 1).astype(np.uint16)
+
+    def run(order_seed: int) -> float:
+        cfg = T.TrainConfig(target_tokens=block * mb * 20, micro_batch=mb, block_size=block,
+                            device="cpu", log_every_s=1e9, seed=order_seed)
+        torch.manual_seed(0)                      # SAME init, so only order can differ
+        m = tiny_model(vocab=V, block=block)
+        return T.train_run(m, T.TokenStream(toks, block, order_seed=order_seed), cfg
+                           ).final_train_loss
+
+    assert run(1) != pytest.approx(run(2), rel=1e-9)
 
 
 def test_order_seed_none_reproduces_corpus_order() -> None:
@@ -150,7 +209,7 @@ def test_loss_decreases_on_a_learnable_pattern() -> None:
     period = np.arange(V, dtype=np.uint16)
     toks = np.tile(period, 4000)
     cfg = T.TrainConfig(target_tokens=block * mb * 60, micro_batch=mb, block_size=block,
-                        device="cpu", log_every_s=0.0, seed=0)
+                        device="cpu", log_every_s=0.0, seed=0, unseeded_order_ok=True)
     res = T.train_run(tiny_model(vocab=V, block=block), T.TokenStream(toks, block), cfg)
     losses = [l for _, l in res.loss_curve]
     assert len(losses) >= 5
@@ -166,7 +225,8 @@ def test_seed_controls_reproducibility() -> None:
                             device="cpu", log_every_s=1e9, seed=seed)
         torch.manual_seed(seed)
         m = tiny_model(vocab=V, block=block)
-        return T.train_run(m, T.TokenStream(toks, block), cfg).final_train_loss
+        return T.train_run(m, T.TokenStream(toks, block, order_seed=seed), cfg
+                           ).final_train_loss
     assert run(1) == pytest.approx(run(1), rel=1e-6)
 
 

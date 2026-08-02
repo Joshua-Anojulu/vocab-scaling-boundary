@@ -89,6 +89,26 @@ this reason — so the fix moves *toward* the reference rather than away from it
   **explicitly superseded across seeds**: it now holds within a seed, not globally. That is
   the point of the change, and it must be stated rather than quietly relaxed.
 
+**The contract is enforced in code, not just written down.** An earlier version of this fix
+left `order_seed` for the caller to pass, so a confirmatory run that simply omitted it would
+have read corpus order and silently reproduced the very defect being repaired — a contract
+living in prose while the code satisfied it by accident, which is the original bug exactly.
+Three guards now close that:
+
+1. `train_run` **refuses** a stream whose `order_seed` is not the run's `seed`. Reading
+   corpus order requires setting `unseeded_order_ok=True`, making it a declaration rather
+   than an omission. Benchmark and smoke runs set it; confirmatory runs cannot.
+2. `TrainResult` records `order_seed` and `stream_sequences` — the size of the permuted
+   domain. The realistic way to break nesting is a caller slicing the token array to budget
+   before constructing the stream: the permutation is then drawn over a smaller domain, the
+   `1.1·C` arm stops nesting its `C` arm, and **nothing in the loss curves would show it.**
+   Requiring equal `stream_sequences` across a `(vocabulary, seed)` group makes it auditable
+   from the artifacts alone.
+3. The nesting test previously compared two whole streams built from the same array and
+   seed, which is tautologically true and could not fail. It now reads two different budgets
+   and asserts the smaller is a strict prefix of the larger, and a companion test exercises
+   the slicing failure directly.
+
 This is chosen over the alternatives for a specific reason — it **preserves the
 preregistered nesting property**. `PLAN.md` requires the ordered corpus be held fixed so
 that "runs at different budgets see the same tokens in the same order, differing only in how
@@ -152,3 +172,10 @@ micro-batches actually taken, so a short final step does not silently carry less
 a full one. The error becomes an **undershoot of at most one sequence**: -0.0011% worst case
 across the six configurations, always conservative, with `consumed_tokens` reported exactly
 rather than assumed equal to target.
+
+Two smaller defects travelled with it, both artifacts of the same assumption that every step
+is full width. The throughput window added `cfg.tokens_per_step` per step regardless of
+trimming, crediting a short final step at full width and inflating the last window — and
+those windows are what the Stage B runtime projections are built from. And `TrainResult.steps`
+reported the planned `total_steps` rather than the steps actually taken. Both now report what
+happened rather than what was planned.

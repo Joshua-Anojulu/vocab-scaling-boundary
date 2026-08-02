@@ -71,6 +71,16 @@ class TrainConfig:
     chunk_size: int = 4096
     log_every_s: float = 30.0
     device: str = "cuda"
+    unseeded_order_ok: bool = False
+    """Declare that this run is NOT a confirmatory run and may read corpus order.
+
+    Confirmatory runs must vary data order with the seed; see the seed-semantics
+    amendment. That was previously true only if the caller remembered to pass
+    `order_seed`, which is the same failure mode as the defect it fixes -- the original
+    bug was a contract that lived in prose while the code satisfied it by accident.
+    `train_run` therefore REQUIRES `stream.order_seed == cfg.seed` unless this is set,
+    so reading corpus order becomes a declaration rather than an omission.
+    """
 
     @property
     def tokens_per_step(self) -> int:
@@ -120,6 +130,16 @@ class TrainResult:
     throughput_windows: list[float] = field(default_factory=list)
     peak_mem_gb: float = 0.0
     seed: int = 0
+    order_seed: int | None = None
+    stream_sequences: int = 0
+    """Size of the permuted domain, i.e. sequences in the WHOLE array, not the budget.
+
+    Recorded so nesting is auditable from the artifacts alone. Runs sharing a
+    `(vocabulary, seed)` must report identical `order_seed` AND `stream_sequences`; if a
+    caller slices the array to budget before building the stream, the permutation is drawn
+    over a smaller domain, the `1.1*C` arm stops nesting its `C` arm, and M2's matched-seed
+    pairing breaks. That is invisible in the loss curves and visible here.
+    """
 
 
 class TokenStream:
@@ -198,6 +218,14 @@ def train_run(
     cfg: TrainConfig,
     log_path: str | Path | None = None,
 ) -> TrainResult:
+    if not cfg.unseeded_order_ok and stream.order_seed != cfg.seed:
+        raise ValueError(
+            f"data order is not tied to the seed: stream.order_seed={stream.order_seed}, "
+            f"cfg.seed={cfg.seed}. A confirmatory run must vary initialisation AND data "
+            f"order together, or the seed-level bootstrap estimates the wrong variance "
+            f"component. Pass TokenStream(..., order_seed=cfg.seed), or set "
+            f"unseeded_order_ok=True to declare this run non-confirmatory."
+        )
     torch.manual_seed(cfg.seed)
     dev = torch.device(cfg.device)
     model = model.to(dev)
@@ -216,6 +244,7 @@ def train_run(
     t0 = time.perf_counter()
     t_win, win_tokens = t0, 0
     last_loss = float("nan")
+    steps_taken = 0
 
     for step in range(total_steps):
         for g in opt.param_groups:
@@ -247,7 +276,11 @@ def train_run(
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
         opt.step()
         last_loss = step_loss
-        win_tokens += cfg.tokens_per_step
+        steps_taken = step + 1
+        # Tokens ACTUALLY processed. Charging `cfg.tokens_per_step` would credit a trimmed
+        # final step at full width and inflate the last throughput window -- and these
+        # windows are what the Stage B runtime projections are built from.
+        win_tokens += sum(micro) * cfg.block_size
 
         now = time.perf_counter()
         if now - t_win >= cfg.log_every_s or step == total_steps - 1:
@@ -266,7 +299,7 @@ def train_run(
     return TrainResult(
         target_tokens=cfg.target_tokens,
         consumed_tokens=consumed,
-        steps=total_steps,
+        steps=steps_taken,
         warmup_steps=warmup,
         seconds=elapsed,
         tokens_per_sec=consumed / elapsed if elapsed else 0.0,
@@ -275,6 +308,8 @@ def train_run(
         throughput_windows=windows,
         peak_mem_gb=peak,
         seed=cfg.seed,
+        order_seed=stream.order_seed,
+        stream_sequences=stream.n_sequences,
     )
 
 
