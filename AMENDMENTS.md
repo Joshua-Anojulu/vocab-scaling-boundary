@@ -91,6 +91,13 @@ is defined and referenced nowhere. Under a constant rate, a checkpoint at step *
 exactly the learning-rate history of a run trained to step *k*, so the objection does not
 apply and reuse is sound.
 
+> ⚠️ **The sentence above is WITHDRAWN** (2026-08-02, A7 round 2). The equivalence holds only
+> if both share a warmup LENGTH. Warmup is a fraction of run length, so a dedicated *k*-step
+> run warms over `0.1k` steps while a checkpoint at step *k* of a longer run warmed over that
+> run's warmup — cumulative learning-rate exposure differs by up to **1.69×** at this study's
+> scale. P1's text is preserved as the record of what was argued at the time; it must not be
+> cited as if it still held.
+
 **Not adopted** because the preregistration specifies separate budget-specific runs and
 the saving became visible only after the budget was measured. If taken, it must be
 recorded here *before* any confirmatory run, noting that the trigger was reading the
@@ -498,10 +505,12 @@ offered for them have not.
 
 **Warmup was 8% and should be 10%, and this is not a rounding matter.** `WARMUP_FRACTION` was
 derived from `tinyllama.py`'s module defaults (`warmup_steps=2000, max_step=25000`). The
-script that actually produced the released IsoFLOP data,
-`experiments/light_train/scripts/run.sh`, passes `warmup_steps=5480, max_step=54800` —
-exactly **10%**. Verified against the upstream repository directly, not inferred from the
-vendored copy. The defaults were never the experiment. `src/train.py` now uses `5480/54800`.
+upstream experiment script `experiments/light_train/scripts/run.sh` passes
+`warmup_steps=5480, max_step=54800` — exactly **10%**. Verified against the upstream
+repository directly, not inferred from the vendored copy.
+
+> ⚠️ This paragraph originally said run.sh "actually produced the released IsoFLOP data".
+> **That is not established and is withdrawn** — see the round-2 corrections below. The defaults were never the experiment. `src/train.py` now uses `5480/54800`.
 
 **A discovery that outgrew this amendment: Tao's IsoFLOP points are not separate runs.**
 `compute_eval_steps(max_steps, evals_per_interval=20)` produces 20 linearly spaced in-training
