@@ -567,3 +567,30 @@ rejects and the pilot will never run at. Across micro-batches 2/4/8/16 at the ma
 9.48 h projected for 18 runs at 1.89 GB peak, against 10.26/10.56/10.96 h for the others.
 Measuring at the real `grad_accum` changed the projection materially — the stale file
 projected 13.04 h — because the optimizer step amortises very differently at `ga=128`.
+
+### Decision: separate budget-specific runs are retained (2026-08-02)
+
+**Decided by the author of the study**, after the discovery that Tao's IsoFLOP points are
+intermediate checkpoints of one run per configuration rather than budget-specific runs.
+
+**`PLAN.md` as written stands: one dedicated run per budget.** The alternative — reproducing
+their procedure by training a longer run and reading checkpoints — would be closer to what
+they did and would also be cheaper, and it is declined anyway, for three reasons:
+
+1. `PLAN.md` prescribes separate runs. Changing a preregistered *procedure* partway through,
+   on the basis of a discovery made while building the runner, is the precise freedom that
+   preregistration exists to remove. The discovery is real and is recorded; acting on it is
+   a different thing from recording it.
+2. A5's surviving independent ground still holds. Reuse induces a dependence between the `C`
+   and `1.1·C` observations that the M2 bootstrap treats as paired-but-distinct. That
+   objection never rested on the learning-rate argument that has now been withdrawn.
+3. The cheaper option being also the more faithful one is exactly the configuration in which
+   a mid-study procedure change is least trustworthy, not most.
+
+**The departure is therefore real and is carried into reporting rather than resolved.** This
+study trains each budget with warmup scaled to that run's length; Tao read checkpoints of a
+longer run whose warmup was scaled to the longer run, so at the low-compute end the two
+procedures put a model at the same token budget through different learning-rate histories.
+This must appear in the paper's methods as a stated difference from the reference, not as a
+detail left in the repository. It is a limitation of the comparison, and pretending the
+procedures match would be the worse error.
