@@ -1550,3 +1550,42 @@ the prose was corrected at the time and the docstring was not. Now consistent wi
 157 tests pass. `PLAN.md` untouched.
 
 **Tally across the seed-semantics track: 3 rounds, 15 findings, 0 rejected.**
+
+## Round 4 — VERDICT: APPROVED (0 findings)
+
+The reviewer was asked to state plainly whether the witness was *sufficient* or merely
+satisfying its last objection, since two previous versions had failed that test. Its answer:
+for fixed `block_size` and the current `TokenStream` semantics, agreement on `order_seed`,
+`stream_sequences`, `tokens_digest` and `order_digest` is genuinely enough to audit nesting,
+and "this is no longer just satisfying the previous objection."
+
+It independently recomputed the eight-seed measurement from the JSON — margin factor
+`30.9642`, interval `19.8780–44.8615` — and accepted the percentile bootstrap over BCa on
+the grounds that this is a descriptive implementation-sensitivity bound, not the
+preregistered inferential procedure. It judged the proposal's framing honest: it leans on
+the lower interval reading rather than the point estimate.
+
+A6 was read as a referee would read it and found free of the four forbidden claims — global
+uniform order, lower-bound variance, cross-version NumPy stability, contiguous-prefix
+unigram baseline — and in conflict with neither A1–A5 nor `PLAN.md`. The history check
+passes: `git log --all -- PLAN.md` shows only `4a2a4b5`.
+
+**Verification gap, recorded rather than glossed.** The reviewer could not execute the test
+suite: its clone's Python 3.14 environment lacks `torch`, so its approval rests on reading
+the code and tests, not on running them. The suite was run by the author in the project venv
+— **157 passing** — which is a different form of evidence from an independent execution, and
+the distinction is worth keeping in the record.
+
+## Outcome of the seed-semantics track
+
+**A6 is ADOPTED and CONFIRMED**, dated 2026-08-01, superseding A1 in part.
+
+**Tally: 4 rounds, 15 findings, 0 rejected.** The reviewer refuted the author's proposed fix
+before it was implemented, withdrew the author's bias claim, corrected two of the author's
+descriptions of the reference, found a defect the author's own fix had introduced into the
+primary metric, and rejected two successive versions of the audit witness. The author
+independently found three enforcement gaps, one wrong constant, and one unstable estimator
+reported as a point value — the last two being its own errors, both introduced during this
+track and both caught before adoption.
+
+`PLAN.md` was not edited at any point. The `final_body_sha256` binding is intact.
