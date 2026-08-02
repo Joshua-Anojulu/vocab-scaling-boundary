@@ -212,7 +212,11 @@ def run_cell(
                                   n_head=cell.n_head, d_ffn=cell.d_ffn,
                                   block_size=block_size))
 
+    # Truncate rather than append: an interrupted run leaves a partial log, and appending
+    # to it would splice two different runs into one curve.
     log_path = (log_dir / f"{cell.label}_s{seed}.csv") if log_dir else None
+    if log_path is not None and log_path.exists():
+        log_path.unlink()
     res = T.train_run(model, stream, cfg, log_path=log_path)
 
     if res.consumed_tokens != stream.cursor * block_size:
