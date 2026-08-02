@@ -193,3 +193,46 @@ def test_run_cell_fits_the_baseline_on_the_consumed_set_not_a_prefix(monkeypatch
     assert abs(rec["eval_h_unigram"] - prefix_h) > 1.0, (
         "baseline matches the prefix fit; the consumed order is not reaching the evaluator"
     )
+
+
+# --- the effective batch is a recipe parameter, not a hardware one --------------------
+
+
+def test_global_batch_matches_the_reference() -> None:
+    """reference/tinyllama_pretrain.py:37 -- and learning_rate 4e-4 is tuned to it."""
+    assert P.GLOBAL_BATCH_SEQUENCES == 512
+
+
+def test_grad_accum_is_derived_so_the_effective_batch_is_exactly_the_recipe() -> None:
+    for mb in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512):
+        assert mb * P.grad_accum_for(mb) == P.GLOBAL_BATCH_SEQUENCES
+
+
+def test_a_micro_batch_that_would_change_the_effective_batch_is_refused() -> None:
+    """Silently landing NEAR 512 would be a different recipe with the same label."""
+    for mb in (3, 5, 6, 7, 100, 513, 0, -4):
+        with pytest.raises(ValueError, match="does not divide the global batch"):
+            P.grad_accum_for(mb)
+
+
+def test_pilot_step_counts_sit_inside_taos_own_range() -> None:
+    """The faithfulness check that decided this: Tao at 33M nnv ran 57-1144 steps.
+
+    Recomputed from their released data rather than quoted, since a step count outside
+    their range would mean "the same recipe" was a label rather than a fact.
+    """
+    import pandas as pd
+    from src import reference as ref
+
+    data = Path(__file__).resolve().parents[1] / "reference" / "exp_data.csv"
+    if not data.exists():
+        pytest.skip("reference/exp_data.csv not present (regenerable, gitignored)")
+    d = pd.read_csv(data)
+    d["steps"] = (d.num_characters * d.vocab_size.map(ref.fertility)
+                  / (P.GLOBAL_BATCH_SEQUENCES * T.BLOCK_SIZE))
+    smallest = d[d.Non_vocab_parameters < 3.4e7]
+    lo, hi = smallest.steps.min(), smallest.steps.max()
+
+    ours = [c.target_tokens // T.BLOCK_SIZE // P.GLOBAL_BATCH_SEQUENCES
+            for c in P.pilot_cells()]
+    assert all(lo <= s <= hi for s in ours), f"ours {sorted(ours)} outside Tao's [{lo:.0f},{hi:.0f}]"

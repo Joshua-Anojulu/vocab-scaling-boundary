@@ -391,3 +391,69 @@ The pilot must report initialisation and data-order variance jointly, and state 
 so. `PLAN.md`'s "what must be recorded" asks for the two components separately where
 possible; the joint estimate is what the inference uses, and any separate reporting is
 descriptive only.
+
+---
+
+## A7 — the effective batch size (2026-08-02)
+
+**Status: PROPOSED**, pending adversarial review. Not adopted; no run has used it yet.
+
+### The gap
+
+`PLAN.md` specifies "the shared Tao training recipe" and "Tao's schedule" but **never fixes
+the number of sequences per optimizer step.** Neither does A1–A6. It was found while
+choosing a batch shape for the Stage B.7 runner, where it presented itself as a throughput
+question and is not one.
+
+The batch size is not free, because the learning rate is coupled to it. The reference sets
+`global_batch_size = 512` sequences and `learning_rate = 4e-4` together
+(`reference/tinyllama_pretrain.py:37,36`), and derives the micro-batch split from it:
+`gradient_accumulation_steps = batch_size // micro_batch_size` (`:125`). Choosing a
+different effective batch while keeping `4e-4` would be a different recipe wearing the same
+name.
+
+### The amendment
+
+**The effective batch is 512 sequences per optimizer step, matching the reference.**
+`micro_batch` is a memory-partitioning knob only, and `grad_accum` is derived as
+`512 // micro_batch`; a micro-batch that does not divide 512 is refused rather than allowed
+to land near it.
+
+### Why this rather than the alternative, decided on measurement
+
+The obvious objection is that at these budgets a 512-sequence batch yields few optimizer
+steps: **130–189** across the six pilot configurations. That was the author's initial
+concern, and it is answered by Tao's own released data rather than by argument.
+
+At their smallest fitted scale (33M non-vocabulary parameters, 200 released runs) their runs
+span **57 to 1,144 optimizer steps, median 601**. This pilot's 130–189 sits inside that
+range and above their minimum. Recomputed in `tests/test_pilot.py` from
+`reference/exp_data.csv` rather than quoted, so a future change that moves the study outside
+their range fails a test.
+
+The alternative — a small effective batch of 16 sequences, which is what a
+throughput-first choice would have produced — gives ~6,000 optimizer steps, **10× Tao's
+median at the comparable scale**, at a learning rate tuned for a batch 32× larger. That is
+the departure from the recipe, not this. The initial framing of the decision had it exactly
+backwards.
+
+### What this amendment does NOT claim
+
+1. **Not** that 512 is optimal for these budgets. It is faithful, which is the requirement
+   here; the study tests Tao's law under Tao's recipe, and optimizing the recipe would
+   confound the test.
+2. **Not** that the resulting models are well converged in an absolute sense. They are
+   trained in the same regime as the reference runs the law was fitted on, which is the
+   only comparability that matters for M1 and M2.
+3. **Not** that micro-batch is inert. It changes throughput and peak memory, and it is
+   chosen by measurement (`scripts/pilot_batch_probe.py`,
+   `results/pilot_batch_probe.json`) — but it cannot change the effective batch, which is
+   what the enforcement above guarantees.
+
+### Reporting obligation
+
+The paper must state the effective batch, the derived micro-batch split, and the optimizer
+step counts alongside Tao's at the comparable scale. A reviewer's first question about a
+study run at 1/130th of the reference's token budget will be whether the models were trained
+comparably; the step-count comparison is the answer and belongs in the text rather than in a
+repository.

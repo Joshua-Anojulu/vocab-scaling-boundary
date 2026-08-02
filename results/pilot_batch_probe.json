@@ -1,0 +1,245 @@
+{
+  "pilot_nnv": 8000000,
+  "block_size": 2048,
+  "measurement_seconds": 20.0,
+  "note": "Throughput is measured on random token ids, which is faithful for compute but not for cache behaviour on real data; treat the projection as a ranking of the two shapes rather than as a wall-clock estimate.",
+  "rows": [
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 768,
+      "batch": 4,
+      "block": 2048,
+      "grad_accum": 4,
+      "tokens_per_step": 32768,
+      "steps": 48,
+      "seconds": 20.30902509999578,
+      "tokens_per_sec": 77446.55355221,
+      "achieved_tflops": 4.046799273452918,
+      "peak_mem_gb": 1.295226368,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        79087.74701045436
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 4
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 768,
+      "batch": 8,
+      "block": 2048,
+      "grad_accum": 8,
+      "tokens_per_step": 131072,
+      "steps": 10,
+      "seconds": 20.656433399999514,
+      "tokens_per_sec": 63453.35492428382,
+      "achieved_tflops": 3.315615464187618,
+      "peak_mem_gb": 2.332888576,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        63175.7081612808
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 8
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 1536,
+      "batch": 4,
+      "block": 2048,
+      "grad_accum": 4,
+      "tokens_per_step": 32768,
+      "steps": 46,
+      "seconds": 20.476407999987714,
+      "tokens_per_sec": 73612.91101451506,
+      "achieved_tflops": 3.955027370724816,
+      "peak_mem_gb": 1.320603648,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        73567.7529354644
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 4
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 1536,
+      "batch": 8,
+      "block": 2048,
+      "grad_accum": 8,
+      "tokens_per_step": 131072,
+      "steps": 11,
+      "seconds": 21.532166699995287,
+      "tokens_per_sec": 66959.9125851239,
+      "achieved_tflops": 3.597579329029482,
+      "peak_mem_gb": 2.348961792,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        67827.80574953977
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 8
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 3200,
+      "batch": 4,
+      "block": 2048,
+      "grad_accum": 4,
+      "tokens_per_step": 32768,
+      "steps": 44,
+      "seconds": 20.38393039999937,
+      "tokens_per_sec": 70731.79566979116,
+      "achieved_tflops": 4.026212248746813,
+      "peak_mem_gb": 1.399196672,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        70702.40745338952
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 4
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 3200,
+      "batch": 8,
+      "block": 2048,
+      "grad_accum": 8,
+      "tokens_per_step": 131072,
+      "steps": 11,
+      "seconds": 21.770445300004212,
+      "tokens_per_sec": 66227.03303178282,
+      "achieved_tflops": 3.769791068723069,
+      "peak_mem_gb": 2.42044416,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        67252.27511873012
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 8
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 6272,
+      "batch": 4,
+      "block": 2048,
+      "grad_accum": 4,
+      "tokens_per_step": 32768,
+      "steps": 40,
+      "seconds": 20.135704200001783,
+      "tokens_per_sec": 65094.32135976074,
+      "achieved_tflops": 4.089256513094423,
+      "peak_mem_gb": 1.55504128,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        65901.06083976984
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 4
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 6272,
+      "batch": 8,
+      "block": 2048,
+      "grad_accum": 8,
+      "tokens_per_step": 131072,
+      "steps": 9,
+      "seconds": 21.2551145000034,
+      "tokens_per_sec": 55499.489311140205,
+      "achieved_tflops": 3.4865045582806973,
+      "peak_mem_gb": 2.58059776,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        54784.251393058024
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 8
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 12672,
+      "batch": 4,
+      "block": 2048,
+      "grad_accum": 4,
+      "tokens_per_step": 32768,
+      "steps": 33,
+      "seconds": 20.419945200002985,
+      "tokens_per_sec": 52955.284130725384,
+      "achieved_tflops": 3.9773908990269047,
+      "peak_mem_gb": 1.889045504,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        53494.68179146133
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 4
+    },
+    {
+      "target_nnv": 8000000,
+      "d": 320,
+      "n_layer": 7,
+      "vocab": 12672,
+      "batch": 8,
+      "block": 2048,
+      "grad_accum": 8,
+      "tokens_per_step": 131072,
+      "steps": 8,
+      "seconds": 21.92797380000411,
+      "tokens_per_sec": 47819.10127965418,
+      "achieved_tflops": 3.591620012080881,
+      "peak_mem_gb": 2.909719552,
+      "throttle_ratio": 1.0,
+      "window_tps": [
+        47803.91873574419
+      ],
+      "ok": true,
+      "note": "",
+      "micro_batch": 8
+    }
+  ],
+  "summary": {
+    "mb4_ga4": {
+      "usable": true,
+      "projected_hours_per_seed": 4.34529097002535,
+      "projected_hours_18_runs": 13.03587291007605,
+      "worst_peak_mem_gb": 1.889045504,
+      "worst_throttle_ratio": 1.0
+    },
+    "mb8_ga8": {
+      "usable": true,
+      "projected_hours_per_seed": 4.873243739737713,
+      "projected_hours_18_runs": 14.61973121921314,
+      "worst_peak_mem_gb": 2.909719552,
+      "worst_throttle_ratio": 1.0
+    }
+  },
+  "recommended": "mb4_ga4"
+}

@@ -53,6 +53,23 @@ PILOT_NNV = 8_000_000
 PILOT_SEEDS = (0, 1, 2)
 M2_MULTIPLIER = 1.1
 
+GLOBAL_BATCH_SEQUENCES = 512
+"""Sequences per OPTIMIZER step, matching `reference/tinyllama_pretrain.py:37`.
+
+This is a recipe parameter, not a hardware one, and `PLAN.md` never fixed it -- it says
+only "the shared Tao training recipe". It is fixed here because it is not free: the
+reference's `learning_rate = 4e-4` was chosen for this batch, and the two are coupled.
+`micro_batch` is purely a memory-partitioning knob, exactly as in the reference, where
+`gradient_accumulation_steps = batch_size // micro_batch_size` is DERIVED (`:125`).
+
+Checked against Tao's released runs rather than assumed. At their smallest fitted scale
+(33M non-vocabulary parameters) their runs span **57 to 1,144 optimizer steps**, median
+601. This pilot at 8M lands at **130-189 steps** -- inside their range and above their
+minimum. Running instead at an effective batch of 16 sequences would give ~6,000 steps,
+**10x their median**, with a learning rate tuned for a batch 32x larger; that would be the
+departure from the recipe, not this.
+"""
+
 
 @dataclass(frozen=True)
 class Cell:
@@ -122,11 +139,27 @@ def check_capacity(cells: list[Cell], block_size: int = T.BLOCK_SIZE) -> list[di
     return rows
 
 
+def grad_accum_for(micro_batch: int) -> int:
+    """Derived, never chosen: `grad_accum = GLOBAL_BATCH_SEQUENCES // micro_batch`.
+
+    Mirrors the reference, where the global batch is the recipe and the micro-batch only
+    decides how it is split across memory. Refusing a micro-batch that does not divide the
+    global batch keeps the effective batch EXACTLY 512 rather than silently near it.
+    """
+    if micro_batch <= 0 or GLOBAL_BATCH_SEQUENCES % micro_batch:
+        raise ValueError(
+            f"micro_batch={micro_batch} does not divide the global batch of "
+            f"{GLOBAL_BATCH_SEQUENCES} sequences; the effective batch would not be the "
+            f"recipe's, and the learning rate is tuned to it"
+        )
+    return GLOBAL_BATCH_SEQUENCES // micro_batch
+
+
 def run_cell(
     cell: Cell,
     seed: int,
     micro_batch: int,
-    grad_accum: int,
+    grad_accum: int | None = None,
     device: str = "cuda",
     block_size: int = T.BLOCK_SIZE,
     eval_batch: int = 4,
@@ -136,7 +169,11 @@ def run_cell(
 
     Neither escape hatch is reachable from here: `TrainConfig` is constructed without
     `unseeded_order_ok`, and `evaluate_run` is called with a real `train_order`.
+
+    `grad_accum` defaults to whatever holds the effective batch at the recipe's 512
+    sequences; passing it explicitly is for tests only.
     """
+    grad_accum = grad_accum_for(micro_batch) if grad_accum is None else grad_accum
     train_tokens = _load_split(cell.vocab_size, "train")
     eval_tokens = _load_split(cell.vocab_size, "selection_val")
     tokenizer = tk.load(TOKENIZERS / f"bpe_v{cell.vocab_size}.json")
@@ -215,8 +252,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                     help="plan and check capacity without touching the GPU")
-    ap.add_argument("--micro-batch", type=int, default=4)
-    ap.add_argument("--grad-accum", type=int, default=4)
+    ap.add_argument("--micro-batch", type=int, default=4,
+                    help="memory knob only; grad_accum is derived to hold the effective "
+                         "batch at the recipe's 512 sequences")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--out", default=str(RUNS))
     args = ap.parse_args()
@@ -229,6 +267,12 @@ def main() -> None:
     for c in cells:
         print(f"{c.label:>14} {c.vocab_size:>7} {c.arm:>5} {c.target_tokens:>15,} "
               f"{c.target_tokens // T.BLOCK_SIZE:>11,}")
+    ga = grad_accum_for(args.micro_batch)
+    print(f"\nrecipe: {GLOBAL_BATCH_SEQUENCES} sequences per optimizer step "
+          f"(micro_batch={args.micro_batch} x grad_accum={ga})")
+    steps = [c.target_tokens // T.BLOCK_SIZE // GLOBAL_BATCH_SEQUENCES for c in cells]
+    print(f"optimizer steps per run: {min(steps)}-{max(steps)}  "
+          f"(Tao at 33M nnv: 57-1144, median 601)")
     total = sum(c.target_tokens for c in cells)
     print(f"\nper seed: {total:,} tokens   x{len(PILOT_SEEDS)} seeds = "
           f"{total * len(PILOT_SEEDS):,}   ({len(cells) * len(PILOT_SEEDS)} runs)")
@@ -252,7 +296,7 @@ def main() -> None:
     for cell in cells:
         for seed in PILOT_SEEDS:
             print(f"\n=== {cell.label} seed={seed} ===", flush=True)
-            rec = run_cell(cell, seed, args.micro_batch, args.grad_accum,
+            rec = run_cell(cell, seed, args.micro_batch,
                            device=args.device, log_dir=out_dir)
             records.append(rec)
             with open(results_path, "a", encoding="utf-8") as fh:
