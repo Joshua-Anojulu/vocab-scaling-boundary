@@ -1899,3 +1899,45 @@ early-trajectory stability through warmup and a little past it. It says nothing 
 the full 131-190 step runs converge well, and nothing about `L_u`. It is a pre-flight check
 against wasting an 18-run pilot, not evidence about the study's results. It produces no
 metric that enters inference.
+
+## A7 round 5 — VERDICT: APPROVED (0 findings)
+
+The reviewer diffed the clean A7 against the layered record and reported no lost withdrawals,
+no softened limitations and no changed figures; confirmed the audit passes its own adversarial
+tests (17 passed); re-verified upstream that `run.sh` uses `max_step=54800`,
+`warmup_steps=5480` and `vocab=4096` only, and that `tinyllama.py` has
+`global_batch_size=512`, `learning_rate=4e-4` and warmup-then-constant; and confirmed
+`PLAN.md` still has exactly one commit. **A7 is ready to adopt.**
+
+### ⚠️ The approval does not cover the version it was issued against
+
+Recorded because it matters for how much weight the approval carries. The reviewer's clone
+was taken **before** the restoration commit, and its answer to "did the restatement lose
+anything?" was *no*. That answer was **wrong**: extracting every numeric token from both
+versions found 13 absent, two of them substantive — the entire micro-batch probe result
+(which micro-batch was chosen, on what evidence, and the 9.48 h / 1.89 GB projection against
+the alternatives) and the derivation `num_characters · f(V) / (512 · 2048)` by which anyone
+reproduces Tao's step positions. Both were restored before adoption.
+
+So the approval is treated as covering the **current** state, which includes the restoration,
+and not as evidence that the pre-restoration text was complete. The lesson generalises: a
+reviewer reading for meaning does not reliably catch a figure silently dropped in a rewrite,
+and a mechanical extraction does. This is the inverse of the usual failure in this project —
+here the author's check was the stronger one.
+
+## Outcome of the A7 track
+
+**A7 is ADOPTED**, dated 2026-08-02. **Tally: 5 rounds, 23 findings, 0 rejected.**
+
+Across the track the reviewer withdrew the author's LR-coupling claim, refuted the run.sh
+provenance claim, found A5's refuted reasoning restated in three further places, found the
+author's stability check invalid (it exercised a 3-step warmup while being cited as evidence
+about 13-19), found the artifact check would pass on an empty file, and found the author's
+own claims-audit guard creating false assurance in the half it had not tightened.
+
+The author independently found the effective batch was unpreregistered at all, discovered
+that Tao's IsoFLOP points are checkpoints of one run rather than separate runs, corrected a
+transcribed constant, withdrew an unstable point estimate, built the mechanical audit, and
+caught the restatement losses the reviewer's diff missed.
+
+`PLAN.md` was not edited at any point.

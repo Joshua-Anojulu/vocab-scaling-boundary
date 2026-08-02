@@ -410,7 +410,8 @@ descriptive only.
 
 ## A7 — effective batch size and warmup fraction (2026-08-02)
 
-**Status: PROPOSED.** No pilot or confirmatory run has used it.
+**Status: ADOPTED**, 2026-08-02, after five rounds of adversarial review (5 rounds,
+23 findings, 0 rejected). Adopted before any pilot or confirmatory run used it.
 
 *This entry was restated cleanly on 2026-08-02, after four review rounds had left it as an
 original claim plus four layers of correction notes. Nothing was adopted at any point, so no
